@@ -18,6 +18,7 @@ from gaussian_renderer import render_predicted
 from scene.gaussian_predictor import GaussianSplatPredictor
 from datasets.dataset_factory import get_dataset
 from utils.loss_utils import ssim as ssim_fn
+from utils.vis_utils import vis_image_preds
 
 class Metricator():
     def __init__(self, device):
@@ -99,11 +100,12 @@ def evaluate_dataset(model, dataloader, device, model_cfg, save_vis=0, out_folde
                                rot_transform_quats,
                                focals_pixels_pred)
 
-        for r_idx in range( data["gt_images"].shape[1]):
+        for r_idx in range(data["gt_images"].shape[1]):
             if "focals_pixels" in data.keys():
                 focals_pixels_render = data["focals_pixels"][0, r_idx]
             else:
                 focals_pixels_render = None
+
             image = render_predicted({k: v[0].contiguous() for k, v in reconstruction.items()},
                                      data["world_view_transforms"][0, r_idx],
                                      data["full_proj_transforms"][0, r_idx], 
@@ -237,8 +239,59 @@ def eval_robustness(model, dataloader, device, model_cfg, out_folder=None):
             torchvision.utils.save_image(image, os.path.join(out_example, '{0:05d}'.format(r_idx) + ".png"))
             torchvision.utils.save_image(data["gt_images"][0, r_idx, ...], os.path.join(out_example_gt, '{0:05d}'.format(r_idx) + ".png"))
 
+def get_raw_model_outputs(model, dataloader, device, model_cfg, save_m_out, out_folder=None):
+    """
+    Runs evaluation on the dataset passed in the dataloader.
+    Computes, prints and saves PSNR, SSIM, LPIPS.
+    Args:
+        save_vis: how many examples will have visualisations saved
+    """
+    os.makedirs(out_folder, exist_ok=True)
+
+    bg_color = [1, 1, 1] if model_cfg.data.white_background else [0, 0, 0]
+    background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
+
+    for d_idx, data in enumerate(tqdm.tqdm(dataloader)):
+        data = {k: v.to(device) for k, v in data.items()}
+
+        example_id = dataloader.dataset.get_example_id(d_idx)
+
+        out_example_gt = os.path.join(out_folder, "{}_".format(d_idx) + example_id + "_gt")
+        out_example = os.path.join(out_folder, "{}_".format(d_idx) + example_id + "_raw_out")
+
+        os.makedirs(out_example_gt, exist_ok=True)
+        os.makedirs(out_example, exist_ok=True)
+
+        for r_idx in range(data["gt_images"].shape[1]):
+
+            rot_transform_quats = data["source_cv2wT_quat"][:, r_idx:r_idx+1, ...]
+
+            if model_cfg.data.category == "hydrants" or model_cfg.data.category == "teddybears":
+                focals_pixels_pred = data["focals_pixels"][:, r_idx:r_idx+1, :, :, :],
+            else:
+                focals_pixels_pred = None
+
+            if model_cfg.data.origin_distances:
+                im = torch.cat([data["gt_images"][:, r_idx:r_idx+1, :, :, :],
+                                data["origin_distances"][:, r_idx:r_idx+1, :, :, :]], dim=2)
+            else:
+                im = data["gt_images"][:, r_idx:r_idx+1, :, :, :]
+
+            # batch has length 1, the first image is conditioning
+            reconstruction = model(im,
+                                   data["view_to_world_transforms"][:, r_idx:r_idx+1, ...],
+                                   rot_transform_quats,
+                                   focals_pixels_pred)
+
+            torchvision.utils.save_image(data["gt_images"][0, r_idx, ...], os.path.join(out_example_gt, '{0:05d}'.format(r_idx) + ".png"))
+
+            save_folder = os.path.join(out_example, "{}".format(r_idx))
+            os.makedirs(save_folder, exist_ok=True)
+            vis_image_preds({k: v[0].contiguous() for k, v in reconstruction.items()}, str(save_folder), save_m_out)
+
+
 @torch.no_grad()
-def main(dataset_name, experiment_path, device_idx, split='test', save_vis=0, out_folder=None):
+def main(dataset_name, experiment_path, device_idx, split='test', save_vis=0, out_folder=None, save_m_out=None):
     
     # set device and random seed
     device = torch.device("cuda:{}".format(device_idx))
@@ -284,8 +337,12 @@ def main(dataset_name, experiment_path, device_idx, split='test', save_vis=0, ou
     dataset = get_dataset(training_cfg, split)
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False,
                             persistent_workers=True, pin_memory=True, num_workers=1)
-    
+
+    if save_m_out is not None:
+        get_raw_model_outputs(model, dataloader, device, training_cfg, save_m_out, out_folder=out_folder)
+
     scores = evaluate_dataset(model, dataloader, device, training_cfg, save_vis=save_vis, out_folder=out_folder)
+
     if split != 'vis':
         print(scores)
     return scores
@@ -303,6 +360,8 @@ def parse_arguments():
                         You can also use this to evaluate on the training or validation splits.')
     parser.add_argument('--out_folder', type=str, default='out', help='Output folder to save renders (default: out)')
     parser.add_argument('--save_vis', type=int, default=0, help='Number of examples for which to save renders (default: 0)')
+    parser.add_argument('--save_model_output', type=str, default=None, help='Save raw model outputs',
+                        choices=['all', 'rbg', 'opacity', 'depth', 'xyz', 'scale'])
     return parser.parse_args()
 
 if __name__ == "__main__":
@@ -323,8 +382,12 @@ if __name__ == "__main__":
     save_vis = args.save_vis
     if save_vis == 0:
         print("Not saving any renders (only computing scores). To save renders use flag --save_vis")
+    save_m_out = args.save_model_output
+    if save_m_out is None:
+        print("Model raw outputs will not be saved")
 
-    scores = main(dataset_name, experiment_path, 0, split=split, save_vis=save_vis, out_folder=out_folder)
+    scores = main(dataset_name, experiment_path, 0, split=split, save_vis=save_vis, out_folder=out_folder,
+                  save_m_out=save_m_out)
     # save scores to json in the experiment folder if appropriate split was used
     if split != "vis":
         if experiment_path is not None:

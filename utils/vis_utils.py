@@ -108,7 +108,7 @@ def comparisons():
             im_out = Image.fromarray(grid)
             im_out.save(os.path.join(out_folder, "{:05d}.png".format(im_idx)))
 
-def vis_image_preds(image_preds: dict, folder_out: str):
+def vis_image_preds(image_preds: dict, folder_out: str, save_m_out=None):
     """
     Visualises network's image predictions.
     Args:
@@ -120,9 +120,17 @@ def vis_image_preds(image_preds: dict, folder_out: str):
     for k, v in image_preds.items():
         image_preds_reshaped[k] = v
         if k == "xyz":
+            image_preds_reshaped["depth"] = image_preds_reshaped[k][..., 2]
+
+            image_preds_reshaped["depth"] = (image_preds_reshaped["depth"] - torch.min(image_preds_reshaped["depth"], dim=0, keepdim=True)[0]) / (
+                torch.max(image_preds_reshaped["depth"], dim=0, keepdim=True)[0] - torch.min(image_preds_reshaped["depth"], dim=0, keepdim=True)[0]
+            )
+            image_preds_reshaped["depth"] = image_preds_reshaped["depth"].reshape(128, 128).detach().cpu()
+
             image_preds_reshaped[k] = (image_preds_reshaped[k] - torch.min(image_preds_reshaped[k], dim=0, keepdim=True)[0]) / (
                 torch.max(image_preds_reshaped[k], dim=0, keepdim=True)[0] - torch.min(image_preds_reshaped[k], dim=0, keepdim=True)[0]
             )
+
         if k == "scaling":
             image_preds_reshaped["scaling"] = (image_preds_reshaped["scaling"] - torch.min(image_preds_reshaped["scaling"], dim=0, keepdim=True)[0]) / (
                 torch.max(image_preds_reshaped["scaling"], dim=0, keepdim=True)[0] - torch.min(image_preds_reshaped["scaling"], dim=0, keepdim=True)[0]
@@ -134,18 +142,26 @@ def vis_image_preds(image_preds: dict, folder_out: str):
         if k == "opacity":
             image_preds_reshaped[k] = image_preds_reshaped[k].expand(128, 128, 3) 
 
-
     colours = torch.cat([image_preds_reshaped["features_dc"].unsqueeze(-1), image_preds_reshaped["features_rest"]], dim=-1)
     colours = eval_sh(1, colours, ray_dirs)
 
-    plt.imsave(os.path.join(folder_out, "colours.png"),
-               colours.numpy())
-    plt.imsave(os.path.join(folder_out, "opacity.png"),
-               image_preds_reshaped["opacity"].numpy())
-    plt.imsave(os.path.join(folder_out, "xyz.png"), 
-               (image_preds_reshaped["xyz"] * image_preds_reshaped["opacity"]+ 1 - image_preds_reshaped["opacity"]).numpy())
-    plt.imsave(os.path.join(folder_out, "scaling.png"), 
-               (image_preds_reshaped["scaling"] * image_preds_reshaped["opacity"] + 1 - image_preds_reshaped["opacity"]).numpy())
+    error_counter = 0
+    if save_m_out is None or save_m_out == 'all' or save_m_out == 'rgb':
+        try:
+            plt.imsave(os.path.join(folder_out, "rgb.png"), colours.numpy())
+        except:
+            error_counter += 1
+    if save_m_out is None or save_m_out == 'all' or save_m_out == 'opacity':
+        plt.imsave(os.path.join(folder_out, "opacity.png"), image_preds_reshaped["opacity"].numpy())
+    if save_m_out is None or save_m_out == 'all' or save_m_out == 'xyz':
+        plt.imsave(os.path.join(folder_out, "xyz.png"),
+                   (image_preds_reshaped["xyz"] * image_preds_reshaped["opacity"] + 1 - image_preds_reshaped["opacity"]).numpy())
+    if save_m_out is None or save_m_out == 'all' or save_m_out == 'scaling':
+        plt.imsave(os.path.join(folder_out, "scaling.png"),
+                   (image_preds_reshaped["scaling"] * image_preds_reshaped["opacity"] + 1 - image_preds_reshaped["opacity"]).numpy())
+    if save_m_out is None or save_m_out == 'all' or save_m_out == 'depth':
+        plt.imsave(os.path.join(folder_out, "depth.png"), image_preds_reshaped["depth"].numpy(), cmap='gray')
+
 
 if __name__ == "__main__":
     gridify()
