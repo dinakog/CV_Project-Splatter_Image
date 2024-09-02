@@ -1,5 +1,8 @@
-__pycache__
-*/__pycache__
-experiments_out
-configs/hydra/cluster.yaml
-SRN_FULL/
+# Ignore images in out folder and all subfolders
+out/**/*.png
+out/**/*.jpg
+out/**/*.jpeg
+out/**/*.gif
+out/**/*.bmp
+out/**/*.tiff
+out/**/*.svg
