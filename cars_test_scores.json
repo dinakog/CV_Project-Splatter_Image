@@ -1,8 +1,8 @@
 {
-    "PSNR_cond": 38.93348176138742,
-    "SSIM_cond": 0.9963450040136065,
-    "LPIPS_cond": 0.005406931880861521,
-    "PSNR_novel": 24.16270906066895,
-    "SSIM_novel": 0.9260715149675095,
-    "LPIPS_novel": 0.07982194477772074
+    "PSNR_cond": NaN,
+    "SSIM_cond": NaN,
+    "LPIPS_cond": NaN,
+    "PSNR_novel": NaN,
+    "SSIM_novel": NaN,
+    "LPIPS_novel": NaN
 }

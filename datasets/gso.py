@@ -12,7 +12,7 @@ from .objaverse import ObjaverseDataset
 
 from utils.graphics_utils import getProjectionMatrix
 
-GSO_ROOT = "splatter-image\GSO" # Change this to your data directory
+GSO_ROOT = r"D:\Projects\Python\Computer Vision\CV_Project-Splatter_Image\GSO" # Change this to your data directory
 assert GSO_ROOT is not None, "Update path of the dataset"
 
 class GSODataset(ObjaverseDataset):

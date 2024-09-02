@@ -13,8 +13,8 @@ from .shared_dataset import SharedDataset
 from utils.graphics_utils import getProjectionMatrix, fov2focal
 from utils.camera_utils import get_loop_cameras
 
-OBJAVERSE_ROOT = "splatter-image\OBJAVERSE" # Change this to your data directory
-OBJAVERSE_LVIS_ANNOTATION_PATH = "splatter-image\OBJAVERSE_LVIS_ANNOTATION" # Change this to your filtering .json path
+OBJAVERSE_ROOT = r"D:\Projects\Python\Computer Vision\CV_Project-Splatter_Image\OBJAVERSE" # Change this to your data directory
+OBJAVERSE_LVIS_ANNOTATION_PATH = "OBJAVERSE_LVIS_ANNOTATION" # Change this to your filtering .json path
 assert OBJAVERSE_ROOT is not None, "Update dataset path"
 assert OBJAVERSE_LVIS_ANNOTATION_PATH is not None, "Update filtering .json path"
 

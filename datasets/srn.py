@@ -11,7 +11,7 @@ from utils.graphics_utils import getWorld2View2, getProjectionMatrix, getView2Wo
 
 from .shared_dataset import SharedDataset
 
-SHAPENET_DATASET_ROOT = "C:\\Users\dinak\PyCharmsProjects\splatter-image\SRN" # Change this to your data directory
+SHAPENET_DATASET_ROOT = r"D:\Projects\Python\Computer Vision\CV_Project-Splatter_Image\SRN" # Change this to your data directory
 assert SHAPENET_DATASET_ROOT is not None, "Update the location of the SRN Shapenet Dataset"
 
 class SRNDataset(SharedDataset):

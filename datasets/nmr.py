@@ -15,7 +15,8 @@ from utils.camera_utils import get_loop_cameras
 
 from .shared_dataset import SharedDataset
 
-NMR_DATASET_ROOT = "splatter-image\\NMR" # Change this to your data directory
+NMR_DATASET_ROOT = r"D:\Projects\Python\Computer Vision\CV_Project-Splatter_Image\NMR"  # Use raw string
+
 assert NMR_DATASET_ROOT is not None, "Update path of the dataset"
 
 class NMRDataset(SharedDataset):

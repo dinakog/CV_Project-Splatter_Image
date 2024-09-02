@@ -23,7 +23,7 @@ from .dataset_readers import readCamerasFromNpy
 from utils.general_utils import matrix_to_quaternion
 from utils.graphics_utils import getWorld2View2, getProjectionMatrix, getView2World, fov2focal
 
-CO3D_DATASET_ROOT = "splatter-image\co3d\OUTPUT_FOLDER" # Change this to where you saved preprocessed data
+CO3D_DATASET_ROOT = r"D:\Projects\Python\Computer Vision\CV_Project-Splatter_Image\CO3D" # Change this to where you saved preprocessed data
 assert CO3D_DATASET_ROOT is not None, "Update the location of the CO3D Dataset"
 
 class CO3DDataset(SharedDataset):
