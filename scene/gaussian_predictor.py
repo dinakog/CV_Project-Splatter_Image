@@ -429,27 +429,25 @@ class SongUNet(nn.Module):
 # NVIDIA copyright does not apply to the code below this line
 
 class SingleImageSongUNetPredictor(nn.Module):
-    # modified
     def __init__(self, cfg, out_channels, bias, scale):
         super(SingleImageSongUNetPredictor, self).__init__()
         self.out_channels = out_channels
         self.cfg = cfg
         if cfg.cam_embd.embedding is None:
-            in_channels = 4  # Change this from 3 to 4
+            in_channels = 3
             emb_dim_in = 0
         else:
-            in_channels = 4  # Change this from 3 to 4
+            in_channels = 3
             emb_dim_in = 6 * cfg.cam_embd.dimension
 
         self.encoder = SongUNet(cfg.data.training_resolution, 
-                                in_channels,  # This is now 4
+                                in_channels, 
                                 sum(out_channels),
                                 model_channels=cfg.model.base_dim,
                                 num_blocks=cfg.model.num_blocks,
                                 emb_dim_in=emb_dim_in,
                                 channel_mult_noise=0,
                                 attn_resolutions=cfg.model.attention_resolutions)
-        # modified
         self.out = nn.Conv2d(in_channels=sum(out_channels), 
                                  out_channels=sum(out_channels),
                                  kernel_size=1)
@@ -688,7 +686,6 @@ class GaussianSplatPredictor(nn.Module):
                 source_cameras_view_to_world, 
                 source_cv2wT_quat=None,
                 focals_pixels=None,
-                depth_input=None,
                 activate_output=True):
 
         B = x.shape[0]
@@ -719,11 +716,6 @@ class GaussianSplatPredictor(nn.Module):
         else:
             const_offset = None
 
-        # Add depth channel to the input
-        if depth_input is not None:
-            depth_input = depth_input.reshape(B*N_views, 1, *depth_input.shape[2:])
-            x = torch.cat([x, depth_input], dim=1)
-            
         source_cameras_view_to_world = source_cameras_view_to_world.reshape(B*N_views, *source_cameras_view_to_world.shape[2:])
         x = x.contiguous(memory_format=torch.channels_last)
 
@@ -802,16 +794,3 @@ class GaussianSplatPredictor(nn.Module):
         out_dict = self.make_contiguous(out_dict)
 
         return out_dict
-    
-    def load_pretrained_weights(self, pretrained_path):
-        pretrained_dict = torch.load(pretrained_path)
-        model_dict = self.state_dict()
-        # Filter out the first convolutional layer
-        pretrained_dict = {k: v for k, v in pretrained_dict.items() if 'network_with_offset.encoder.128x128_conv' not in k}
-        model_dict.update(pretrained_dict)
-        self.load_state_dict(model_dict, strict=False)
-
-    def freeze_layers_except_first(self):
-        for name, param in self.named_parameters():
-            if 'network_with_offset.encoder.128x128_conv' not in name:
-                param.requires_grad = False
