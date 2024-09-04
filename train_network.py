@@ -160,8 +160,6 @@ def main(cfg: DictConfig):
 
     for num_epoch in range((cfg.opt.iterations + 1 - first_iter)// len(dataloader) + 1):
         #dataloader.sampler.set_epoch(num_epoch)
-        print(range((cfg.opt.iterations + 1 - first_iter)// len(dataloader) + 1))
-        print(cfg.opt.iterations)
 
         for data in dataloader:
             iteration += 1

@@ -14,8 +14,9 @@ data:
   subset: -1
   input_images: 1
   origin_distances: false
+  depth: false
 opt:
-  iterations: 1000 #800001
+  iterations: 20000 #800001
   base_lr: 0.00005
   batch_size: 10 #8
   betas:
@@ -50,7 +51,7 @@ model:
   - 16
   num_blocks: 4
   cross_view_attention: true
-  base_dim: 128
+  base_dim: 64 #128
   isotropic: false
 
 logging:

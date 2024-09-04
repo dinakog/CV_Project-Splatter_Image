@@ -1,6 +1,6 @@
 # @package _global_
 opt:
-  iterations: 100001
-  pretrained_ckpt: null
+  iterations: 10000 #100001
+  pretrained_ckpt: C:\Users\dinak\PyCharmsProjects\try\CV_Project-Splatter_Image\experiments_out\2024-09-02\06-57-20
   lambda_lpips: 0.01
   base_lr: 0.000005
