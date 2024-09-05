@@ -4,21 +4,30 @@ defaults:
   - hydra: defaults
   - cam_embd: defaults
   - _self_
+
 general:
   device: 0
   random_seed: 0
   num_devices: 1
   mixed_precision: false
+
 data:
-  training_resolution: 64 #128
+  training_resolution: 64  # 128
   subset: -1
   input_images: 1
   origin_distances: false
-  depth: false
+  use_depth: true
+  depth_scale: 1.0
+  category: cars
+  fov: 49.13
+  znear: 0.8
+  zfar: 1.8
+  white_background: true  # Added this line
+
 opt:
-  iterations: 4000 #800001
+  iterations: 4000  # 800001
   base_lr: 0.00005
-  batch_size: 10 #8
+  batch_size: 10  # 8
   betas:
     - 0.9
     - 0.999
@@ -51,8 +60,9 @@ model:
   - 16
   num_blocks: 4
   cross_view_attention: true
-  base_dim: 64 #128
+  base_dim: 64  # 128
   isotropic: false
+  in_channels: 4
 
 logging:
   ckpt_iterations: 1000 
@@ -60,3 +70,6 @@ logging:
   loss_log: 10
   loop_log: 10000
   render_log: 10000
+
+wandb:
+  project: splatter_image_depth

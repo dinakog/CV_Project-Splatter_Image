@@ -12,3 +12,9 @@
 
 # Ignore all wandb files
 wandb/**
+
+# Ignore all experiment_out files and folders
+experiments_out/**
+
+# ignore all __pycache__ files
+__pycache__/

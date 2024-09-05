@@ -30,8 +30,7 @@ class Metricator():
         return psnr, ssim, lpips
 
 @torch.no_grad()
-def evaluate_dataset(model, dataloader, device, model_cfg, save_vis=0, out_folder=None
-                     ):
+def evaluate_dataset(model, dataloader, device, model_cfg, save_vis=0, out_folder=None):
     """
     Runs evaluation on the dataset passed in the dataloader. 
     Computes, prints and saves PSNR, SSIM, LPIPS.
