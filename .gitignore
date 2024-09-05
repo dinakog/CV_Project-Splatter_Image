@@ -1,31 +1,14 @@
-# ignore images in out folder
-out/*.png
+# Ignore image files in all directories
+**/*.png
+**/*.jpg
+**/*.jpeg
+**/*.gif
+**/*.bmp
+**/*.tiff
+**/*.svg
 
-# ignore images in out folder and all subfolders
-out/**/*.png
+# Ignore text files in all directories
+**/*.txt
 
-# ignore images in out folder and all subfolders for other image types
-out/**/*.jpg
-out/**/*.jpeg
-out/**/*.gif
-out/**/*.bmp
-out/**/*.tiff
-out/**/*.svg
-
-# ignore all files in out folder and all subfolders
-output/**/*.jpeg
-output/**/*.jpg
-output/**/*.png
-output/**/*.gif
-output/**/*.bmp
-output/**/*.tiff
-
-wandb/**/*.png
-
-#ignore all wandb files
-wandb/
-__pycache__
-*/__pycache__
-experiments_out
-configs/hydra/cluster.yaml
-SRN_FULL/
+# Ignore all wandb files
+wandb/**
