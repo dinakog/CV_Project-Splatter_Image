@@ -112,8 +112,8 @@ def main(cfg: DictConfig):
     lambda_lpips = cfg.opt.lambda_lpips
     lambda_l12 = 1.0 - lambda_lpips
 
-    bg_color = [1, 1, 1] if cfg.data.white_background else [0, 0, 0]
-    background = torch.tensor(bg_color, dtype=torch.float32)
+    bg_color = [1, 1, 1, 0] if cfg.data.white_background else [0, 0, 0, 0]
+    background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
     background = fabric.to_device(background)
 
     dataset = SRNDepthDataset(cfg, "train")
@@ -153,48 +153,73 @@ def main(cfg: DictConfig):
             rendered_images = []
             gt_images = []
             for b_idx in range(data["gt_images"].shape[0]):
+                gaussian_splat_batch = {k: v[b_idx].contiguous() for k, v in gaussian_splats.items()}
                 for r_idx in range(cfg.data.input_images, data["gt_images"].shape[1]):
-                    image = render_predicted(gaussian_splats, 
-                                             data["world_view_transforms"][b_idx, r_idx],
-                                             background,
-                                             cfg)["render"]
+                    image = render_predicted(gaussian_splat_batch, 
+                                            data["world_view_transforms"][b_idx, r_idx],
+                                            data["full_proj_transforms"][b_idx, r_idx],
+                                            data["camera_centers"][b_idx, r_idx],
+                                            background,
+                                            cfg)["render"]
                     rendered_images.append(image)
                     gt_image = data["gt_images"][b_idx, r_idx]
                     gt_images.append(gt_image)
                     
+            
+            # After stacking rendered_images and gt_images
             rendered_images = torch.stack(rendered_images, dim=0)
             gt_images = torch.stack(gt_images, dim=0)
-            
+
+            print(f"Rendered images shape: {rendered_images.shape}")
+            print(f"GT images shape: {gt_images.shape}")
+
+            print(f"Rendered RGB min/max: {rendered_images[:, :3].min().item()}, {rendered_images[:, :3].max().item()}")
+            print(f"GT RGB min/max: {gt_images[:, :3].min().item()}, {gt_images[:, :3].max().item()}")
+
+            if rendered_images.shape[1] > 3:
+                print(f"Rendered depth min/max: {rendered_images[:, 3:].min().item()}, {rendered_images[:, 3:].max().item()}")
+            else:
+                print("Rendered images do not contain depth information")
+
+            print(f"GT depth min/max: {gt_images[:, 3:].min().item()}, {gt_images[:, 3:].max().item()}")
+
+            # Check for NaN values
+            if torch.isnan(rendered_images).any():
+                print("NaN detected in rendered images")
+                nan_indices = torch.nonzero(torch.isnan(rendered_images))
+                print(f"NaN indices in rendered images: {nan_indices}")
+
+            if torch.isnan(gt_images).any():
+                print("NaN detected in ground truth images")
+                nan_indices = torch.nonzero(torch.isnan(gt_images))
+                print(f"NaN indices in ground truth images: {nan_indices}")
+
             # Loss computation
             l12_loss_sum = loss_fn(rendered_images[:, :3], gt_images[:, :3])  # RGB loss
-            depth_loss = loss_fn(rendered_images[:, 3:], gt_images[:, 3:])  # Depth loss
-            
+
+            if rendered_images.shape[1] > 3:
+                depth_loss = loss_fn(rendered_images[:, 3:], gt_images[:, 3:])  # Depth loss
+            else:
+                print("Warning: Depth loss cannot be computed as rendered images lack depth channel")
+                depth_loss = torch.tensor(0.0, device=device)
+
+            print(f"l12_loss_sum: {l12_loss_sum.item()}")
+            print(f"depth_loss: {depth_loss.item()}")
+
             if cfg.opt.lambda_lpips != 0:
                 lpips_loss_sum = torch.mean(
                     lpips_fn(rendered_images[:, :3] * 2 - 1, gt_images[:, :3] * 2 - 1),
                 )
-                
-            # Debugging NaN detection
-            if torch.isnan(depth_loss).any():
-                print("NaN detected in depth_loss")
-            if torch.isnan(lpips_loss_sum).any():
-                print("NaN detected in lpips_loss_sum")
-                
+            else:
+                lpips_loss_sum = torch.tensor(0.0, device=device)  # Set to 0 if not used
+
+            print(f"lpips_loss_sum: {lpips_loss_sum.item()}")
+
             total_loss = l12_loss_sum * lambda_l12 + lpips_loss_sum * lambda_lpips + depth_loss
-            
-            # if torch.isnan(total_loss):
-            #     print(f"NaN detected in total_loss at iteration {iteration}")
-            #     print(f"rendered_images shape: {rendered_images.shape}")
-            #     print(f"gt_images shape: {gt_images.shape}")
-            #     print(f"rendered_images min/max: {rendered_images.min().item()}, {rendered_images.max().item()}")
-            #     print(f"gt_images min/max: {gt_images.min().item()}, {gt_images.max().item()}")
-            
-            print(f"l12_loss_sum: {l12_loss_sum.item()}")
-            print(f"lpips_loss_sum: {lpips_loss_sum}")
-            print(f"depth_loss: {depth_loss.item()}")
+
             print(f"total_loss: {total_loss.item()}")
-            
-            assert not total_loss.isnan(), "Found NaN loss!"
+
+            assert not torch.isnan(total_loss), "Found NaN loss!"
             
             fabric.backward(total_loss)
 

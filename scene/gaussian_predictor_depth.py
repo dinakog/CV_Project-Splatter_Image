@@ -167,12 +167,17 @@ class DepthGaussianSplatPredictor(GaussianSplatPredictor):
             out_dict["opacity"] = self.flatten_vector(opacity)
             out_dict["scaling"] = self.flatten_vector(scaling_out)
 
-        ## Handling quaternion multiplication
-        if source_cv2wT_quat is None:
-            print("Warning: source_cv2wT_quat is None. Setting a default identity matrix.")
-            source_cv2wT_quat = torch.eye(4).unsqueeze(0).repeat(B*N_views, 1, 1).to(x.device)
+    # Handle the case when source_cv2wT_quat is None or has unexpected shape
+        if source_cv2wT_quat is None or source_cv2wT_quat.shape[-2:] == (4, 4):
+            print("Warning: source_cv2wT_quat is None or has shape [..., 4, 4]. Using identity quaternions.")
+            source_cv2wT_quat = torch.tensor([1.0, 0.0, 0.0, 0.0], device=x.device).expand(B*N_views, 4)
+        else:
+            source_cv2wT_quat = source_cv2wT_quat.reshape(B*N_views, -1)
+            if source_cv2wT_quat.shape[-1] != 4:
+                raise ValueError(f"Unexpected shape for source_cv2wT_quat: {source_cv2wT_quat.shape}")
 
-        out_dict["rotation"] = self.transform_rotations(out_dict["rotation"], source_cv2wT_quat=source_cv2wT_quat)
+        out_dict["rotation"] = self.transform_rotations(out_dict["rotation"], source_cv2wT_quat)
+
 
         # Handling spherical harmonics if used
         if self.cfg.model.max_sh_degree > 0:
@@ -190,3 +195,10 @@ class DepthGaussianSplatPredictor(GaussianSplatPredictor):
         out_dict = self.make_contiguous(out_dict)
 
         return out_dict
+    
+    def transform_rotations(self, rotations, source_cv2wT_quat):
+        if source_cv2wT_quat.shape[-1] != 4:
+            raise ValueError(f"Unexpected shape for source_cv2wT_quat in transform_rotations: {source_cv2wT_quat.shape}")
+        Mq = source_cv2wT_quat.unsqueeze(1).expand(-1, rotations.shape[1], -1)
+        rotations = quaternion_raw_multiply(Mq, rotations)
+        return rotations

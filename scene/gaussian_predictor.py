@@ -648,20 +648,37 @@ class GaussianSplatPredictor(nn.Module):
 
         return shs_transformed
 
-    def transform_rotations(self, rotations, source_cv2wT_quat):
-        """
-        Applies a transform that rotates the predicted rotations from 
-        camera space to world space.
-        Args:
-            rotations: predicted in-camera rotation quaternions (B x N x 4)
-            source_cameras_to_world: transformation quaternions from 
-                camera-to-world matrices transposed(B x 4)
-        Retures:
-            rotations with appropriately applied transform to world space
-        """
+    # def transform_rotations(self, rotations, source_cv2wT_quat):
+    #     """
+    #     Applies a transform that rotates the predicted rotations from 
+    #     camera space to world space.
+    #     Args:
+    #         rotations: predicted in-camera rotation quaternions (B x N x 4)
+    #         source_cameras_to_world: transformation quaternions from 
+    #             camera-to-world matrices transposed(B x 4)
+    #     Retures:
+    #         rotations with appropriately applied transform to world space
+    #     """
 
-        Mq = source_cv2wT_quat.unsqueeze(1).expand(*rotations.shape)
+    #     Mq = source_cv2wT_quat.unsqueeze(1).expand(*rotations.shape)
 
+    #     rotations = quaternion_raw_multiply(Mq, rotations) 
+        
+    #     return rotations
+    
+    def transform_rotations(self, rotations, source_cv2wT_quat=None):
+        if source_cv2wT_quat is None:
+            print("Warning: source_cv2wT_quat is None. Skipping rotation transformation.")
+            return rotations
+        
+        if source_cv2wT_quat.dim() == 4:  # It's a 4x4 matrix
+            source_cv2wT_quat = matrix_to_quaternion(source_cv2wT_quat[:, :3, :3])
+        
+        if source_cv2wT_quat.shape[-1] != 4:
+            print(f"Warning: Unexpected shape for source_cv2wT_quat: {source_cv2wT_quat.shape}. Skipping rotation transformation.")
+            return rotations
+        
+        Mq = source_cv2wT_quat.unsqueeze(1).expand(-1, rotations.shape[1], -1)
         rotations = quaternion_raw_multiply(Mq, rotations) 
         
         return rotations
