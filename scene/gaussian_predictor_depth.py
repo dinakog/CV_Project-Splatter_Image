@@ -87,7 +87,8 @@ class DepthGaussianSplatPredictor(GaussianSplatPredictor):
 
         B = x.shape[0]
         N_views = x.shape[1]
-        
+    
+            
         # Cross-view attention
         if self.cfg.model.cross_view_attention:
             N_views_xa = N_views
@@ -193,7 +194,13 @@ class DepthGaussianSplatPredictor(GaussianSplatPredictor):
 
         out_dict = self.multi_view_union(out_dict, B, N_views)
         out_dict = self.make_contiguous(out_dict)
-
+        
+        print("DepthGaussianSplatPredictor output keys:", out_dict.keys())
+        print("DepthGaussianSplatPredictor output shapes:")
+        for key, value in out_dict.items():
+            print(f"{key}: {value.shape}")
+            
+        out_dict['depth'] = out_dict['xyz'][:, :, 2].unsqueeze(1)  # Use z-coordinate as depth
         return out_dict
     
     def transform_rotations(self, rotations, source_cv2wT_quat):

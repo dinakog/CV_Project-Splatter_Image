@@ -146,7 +146,12 @@ def main(cfg: DictConfig):
 
             gaussian_splats = gaussian_predictor(input_images,
                                                 data["view_to_world_transforms"][:, :cfg.data.input_images, ...])
-
+            
+            print("Gaussian splats keys:", gaussian_splats.keys())
+            print("Gaussian splats shapes:")
+            for key, value in gaussian_splats.items():
+                print(f"{key}: {value.shape}")
+                
             # Render
             l12_loss_sum = 0.0
             lpips_loss_sum = 0.0
@@ -161,6 +166,11 @@ def main(cfg: DictConfig):
                                             data["camera_centers"][b_idx, r_idx],
                                             background,
                                             cfg)["render"]
+                    # Ensure the rendered image is the correct size
+                    if image.shape[-2:] != (64, 64):
+                        print(f"Resizing image from {image.shape[-2:]} to (64, 64)")
+                        image = torch.nn.functional.interpolate(image.unsqueeze(0), size=(64, 64), mode='bilinear', align_corners=False).squeeze(0)
+                        
                     rendered_images.append(image)
                     gt_image = data["gt_images"][b_idx, r_idx]
                     gt_images.append(gt_image)
@@ -188,7 +198,11 @@ def main(cfg: DictConfig):
                 print("NaN detected in rendered images")
                 nan_indices = torch.nonzero(torch.isnan(rendered_images))
                 print(f"NaN indices in rendered images: {nan_indices}")
-
+                
+            if torch.isnan(rendered_images).any() or torch.isnan(gt_images).any():
+                print("NaN detected in rendered or GT images")
+                print(f"Rendered images NaN locations: {torch.isnan(rendered_images).nonzero()}")
+                print(f"GT images NaN locations: {torch.isnan(gt_images).nonzero()}")
             if torch.isnan(gt_images).any():
                 print("NaN detected in ground truth images")
                 nan_indices = torch.nonzero(torch.isnan(gt_images))
@@ -196,13 +210,8 @@ def main(cfg: DictConfig):
 
             # Loss computation
             l12_loss_sum = loss_fn(rendered_images[:, :3], gt_images[:, :3])  # RGB loss
-
-            if rendered_images.shape[1] > 3:
-                depth_loss = loss_fn(rendered_images[:, 3:], gt_images[:, 3:])  # Depth loss
-            else:
-                print("Warning: Depth loss cannot be computed as rendered images lack depth channel")
-                depth_loss = torch.tensor(0.0, device=device)
-
+            depth_loss = loss_fn(rendered_images[:, 3:], gt_images[:, 3:])  # Depth loss
+            
             print(f"l12_loss_sum: {l12_loss_sum.item()}")
             print(f"depth_loss: {depth_loss.item()}")
 
@@ -218,7 +227,13 @@ def main(cfg: DictConfig):
             total_loss = l12_loss_sum * lambda_l12 + lpips_loss_sum * lambda_lpips + depth_loss
 
             print(f"total_loss: {total_loss.item()}")
-
+            
+            if torch.isnan(total_loss):
+                print("NaN detected in total loss")
+                print(f"l12_loss_sum: {l12_loss_sum}")
+                print(f"depth_loss: {depth_loss}")
+                print(f"lpips_loss_sum: {lpips_loss_sum}")
+                
             assert not torch.isnan(total_loss), "Found NaN loss!"
             
             fabric.backward(total_loss)

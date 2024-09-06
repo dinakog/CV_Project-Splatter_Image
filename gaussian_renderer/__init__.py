@@ -91,9 +91,28 @@ def render_predicted(pc : dict,
         rotations = rotations,
         cov3D_precomp = cov3D_precomp)
 
-    # Those Gaussians that were frustum culled or had a radius of 0 were not visible.
-    # They will be excluded from value updates used in the splitting criteria.
-    return {"render": rendered_image,
+    # Render depth
+    depth_image = rasterizer(
+        means3D = means3D,
+        means2D = means2D,
+        shs = None,
+        colors_precomp = means3D[:, 2].unsqueeze(1),  # Use z-coordinate as depth
+        opacities = opacity,
+        scales = scales,
+        rotations = rotations,
+        cov3D_precomp = cov3D_precomp)[0]
+
+    # Combine color and depth
+    rendered_output = torch.cat([rendered_image, depth_image], dim=0)
+
+    # Resize to 64x64 if necessary
+    if rendered_output.shape[-2:] != (64, 64):
+        rendered_output = torch.nn.functional.interpolate(rendered_output.unsqueeze(0), 
+                                                        size=(64, 64), 
+                                                        mode='bilinear', 
+                                                        align_corners=False).squeeze(0)
+
+    return {"render": rendered_output,
             "viewspace_points": screenspace_points,
             "visibility_filter" : radii > 0,
             "radii": radii}
