@@ -186,18 +186,71 @@ def main(cfg: DictConfig):
                 #depth_images = data.get("depth_images")  # Fetch depth images if available
                 print("input_images shape: ", input_images.shape)
               
-                
-                for i in range(input_images.shape[1]):
-                    plt.imshow(input_images[0][i].cpu().permute(1, 2, 0))
+                # Stack RGB and depth into a 4-channel image
+                for i in range(input_images.shape[0]):  # For each batch
+                    rgb = input_images[i][0]  # RGB image is [3, 64, 64]
+                    depth = depth_images[i][0]  # Depth image is [1, 64, 64]
+                    
+                    # Stack along the channel axis
+                    stacked_image = torch.cat([rgb, depth], dim=0)  # Result is [4, 64, 64]
+
+                    # Plot individual channels for visualization
+                    plt.figure(figsize=(12, 6))
+                    
+                    # RGB image (First 3 channels)
+                    plt.subplot(1, 2, 1)
+                    rgb_image = rgb.cpu().permute(1, 2, 0)  # Convert to HWC format for visualization
+                    plt.imshow(rgb_image)
+                    plt.title('RGB Image')
+                    
+                    # Depth image (4th channel)
+                    plt.subplot(1, 2, 2)
+                    depth_image = depth.cpu().squeeze(0)  # Depth image has shape [64, 64]
+                    plt.imshow(depth_image, cmap='gray')
+                    plt.title('Depth Image')
+
+                    plt.show()
+
+                    # You can now use `stacked_image` as a 4-channel input to your network.
+                    print(f'Stacked image shape: {stacked_image.shape}')  # Should print [4, 64, 64]
+                    #plot stacked image
+                    plt.figure(figsize=(6, 6))
+                    stacked_image = stacked_image.cpu().permute(1, 2, 0)
+                    plt.imshow(stacked_image)
+                    plt.title('Stacked Image')
                     plt.show()
                     
+                    #break down the stacked image and the rgb
+                    r_channel = stacked_image[0, :, :]
+                    g_channel = stacked_image[1, :, :]
+                    b_channel = stacked_image[2, :, :]
+                    depth_channel = stacked_image[3, :, :]
                     
-                 # Display depth images if available
-                if depth_images is not None:
-                    print("depth_images shape: ", depth_images.shape)
-                    for i in range(depth_images.shape[1]):
-                        plt.imshow(depth_images[0][i].cpu().squeeze(), cmap='gray')  # Assuming single channel
-                        plt.show()
+                    
+                    # Normalize the RGB channels for visualization (assuming values in [0, 1])
+                    r_channel = (r_channel - r_channel.min()) / (r_channel.max() - r_channel.min())
+                    g_channel = (g_channel - g_channel.min()) / (g_channel.max() - g_channel.min())
+                    b_channel = (b_channel - b_channel.min()) / (b_channel.max() - b_channel.min())
+
+                    # Normalize the depth channel (optional depending on range)
+                    depth_channel = (depth_channel - depth_channel.min()) / (depth_channel.max() - depth_channel.min())
+                    # Plot each channel
+                    fig, axs = plt.subplots(1, 4, figsize=(15, 5))
+
+                    axs[0].imshow(r_channel.cpu(), cmap='Reds', aspect='auto')
+                    axs[0].set_title('Red Channel')
+
+                    axs[1].imshow(g_channel.cpu(), cmap='Greens', aspect='auto')
+                    axs[1].set_title('Green Channel')
+
+                    axs[2].imshow(b_channel.cpu(), cmap='Blues', aspect='auto')
+                    axs[2].set_title('Blue Channel')
+
+                    axs[3].imshow(depth_channel.cpu(), cmap='gray', aspect='auto')
+                    axs[3].set_title('Depth Channel')
+
+                    plt.show()
+                    
                         
             gaussian_splats = gaussian_predictor(input_images,
                                                 data["view_to_world_transforms"][:, :cfg.data.input_images, ...],
