@@ -2,7 +2,7 @@ import glob
 import hydra
 import os
 import wandb
-
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
@@ -157,7 +157,7 @@ def main(cfg: DictConfig):
     print("Beginning training")
     first_iter += 1
     iteration = first_iter
-    done = False
+    #done = False
 
     for num_epoch in range((cfg.opt.iterations + 1 - first_iter)// len(dataloader) + 1):
         for data in dataloader:
@@ -182,7 +182,23 @@ def main(cfg: DictConfig):
             else:
                 focals_pixels_pred = None
                 input_images = data["gt_images"][:, :cfg.data.input_images, ...]
-
+                depth_images = data["gt_depths"][:, :cfg.data.input_images, ...]  # Fetch depth images if available
+                #depth_images = data.get("depth_images")  # Fetch depth images if available
+                print("input_images shape: ", input_images.shape)
+              
+                
+                for i in range(input_images.shape[1]):
+                    plt.imshow(input_images[0][i].cpu().permute(1, 2, 0))
+                    plt.show()
+                    
+                    
+                 # Display depth images if available
+                if depth_images is not None:
+                    print("depth_images shape: ", depth_images.shape)
+                    for i in range(depth_images.shape[1]):
+                        plt.imshow(depth_images[0][i].cpu().squeeze(), cmap='gray')  # Assuming single channel
+                        plt.show()
+                        
             gaussian_splats = gaussian_predictor(input_images,
                                                 data["view_to_world_transforms"][:, :cfg.data.input_images, ...],
                                                 rot_transform_quats,

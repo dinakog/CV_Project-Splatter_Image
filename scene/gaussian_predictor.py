@@ -58,6 +58,7 @@ class Conv2d(torch.nn.Module):
         in_channels, out_channels, kernel, bias=True, up=False, down=False,
         resample_filter=[1,1], fused_resample=False, init_mode='kaiming_normal', init_weight=1, init_bias=0,
     ):
+        print("entered Conv2d")
         assert not (up and down)
         super().__init__()
         self.in_channels = in_channels
@@ -285,7 +286,7 @@ class SongUNet(nn.Module):
         emb_dim_in           = 0,            # Input embedding dim.
         augment_dim         = 0,            # Augmentation label dimensionality, 0 = no augmentation.
 
-        model_channels      = 128,          # Base multiplier for the number of channels.
+        model_channels      = 64 ,         # Base multiplier for the number of channels. #128
         channel_mult        = [1,2,2,2],    # Per-resolution multipliers for the number of channels.
         channel_mult_emb    = 4,            # Multiplier for the dimensionality of the embedding vector.
         num_blocks          = 4,            # Number of residual blocks per resolution.
@@ -302,7 +303,7 @@ class SongUNet(nn.Module):
         assert embedding_type in ['fourier', 'positional']
         assert encoder_type in ['standard', 'skip', 'residual']
         assert decoder_type in ['standard', 'skip']
-
+        print("entered SongUNet after assert")
         super().__init__()
         self.label_dropout = label_dropout
         self.emb_dim_in = emb_dim_in
@@ -334,16 +335,19 @@ class SongUNet(nn.Module):
             self.noise_map_layer1 = Linear(in_features=emb_channels, out_features=emb_channels, **init)
 
         # Encoder.
+        print("entered SongUNet after encoder")
         self.enc = torch.nn.ModuleDict()
         cout = in_channels
         caux = in_channels
         for level, mult in enumerate(channel_mult):
             res = img_resolution >> level
             if level == 0:
+                print("entered SongUNet after level == 0")
                 cin = cout
                 cout = model_channels
                 self.enc[f'{res}x{res}_conv'] = Conv2d(in_channels=cin, out_channels=cout, kernel=3, **init)
             else:
+                print("entered SongUNet after level != 0")
                 self.enc[f'{res}x{res}_down'] = UNetBlock(in_channels=cout, out_channels=cout, down=True, **block_kwargs)
                 if encoder_type == 'skip':
                     self.enc[f'{res}x{res}_aux_down'] = Conv2d(in_channels=caux, out_channels=caux, kernel=0, down=True, resample_filter=resample_filter)
@@ -359,13 +363,16 @@ class SongUNet(nn.Module):
         skips = [block.out_channels for name, block in self.enc.items() if 'aux' not in name]
 
         # Decoder.
+        print("entered SongUNet after decoder")
         self.dec = torch.nn.ModuleDict()
         for level, mult in reversed(list(enumerate(channel_mult))):
             res = img_resolution >> level
             if level == len(channel_mult) - 1:
+                print("entered SongUNet after level == len(channel_mult) - 1")
                 self.dec[f'{res}x{res}_in0'] = UNetBlock(in_channels=cout, out_channels=cout, attention=True, **block_kwargs)
                 self.dec[f'{res}x{res}_in1'] = UNetBlock(in_channels=cout, out_channels=cout, **block_kwargs)
             else:
+                print("entered SongUNet after level != len(channel_mult) - 1")
                 self.dec[f'{res}x{res}_up'] = UNetBlock(in_channels=cout, out_channels=cout, up=True, **block_kwargs)
             for idx in range(num_blocks + 1):
                 cin = cout + skips.pop()
@@ -379,7 +386,7 @@ class SongUNet(nn.Module):
                 self.dec[f'{res}x{res}_aux_conv'] = Conv2d(in_channels=cout, out_channels=out_channels, kernel=3, init_weight=0.2, **init)# init_zero)
 
     def forward(self, x, film_camera_emb=None, N_views_xa=1):
-
+        print("entered SongUNet forward")
         emb = None
 
         if film_camera_emb is not None:
@@ -391,6 +398,7 @@ class SongUNet(nn.Module):
             emb = film_camera_emb
 
         # Encoder.
+        print("entered SongUNet forward after encoder")
         skips = []
         aux = x
         for name, block in self.enc.items():
@@ -406,6 +414,7 @@ class SongUNet(nn.Module):
                 skips.append(x)
 
         # Decoder.
+        print("entered SongUNet forward after decoder")
         aux = None
         tmp = None
         for name, block in self.dec.items():
@@ -430,19 +439,21 @@ class SongUNet(nn.Module):
 
 class SingleImageSongUNetPredictor(nn.Module):
     def __init__(self, cfg, out_channels, bias, scale):
+        print("entered SingleImageSongUNetPredictor")
         super(SingleImageSongUNetPredictor, self).__init__()
         self.out_channels = out_channels
+        print("inside SingleImageSongUnetPredictor out_channels: ", out_channels)
         self.cfg = cfg
         if cfg.cam_embd.embedding is None:
             in_channels = 3
             emb_dim_in = 0
-            #if cfg.data.depth:
-            #    in_channels = 4
+            print("inside SingleImageSongUnetPredictor cam_embd.embedding is None") 
+
         else:
+            print("inside SingleImageSongUnetPredictor cam_embd.embedding is not!! None")
             in_channels = 3
             emb_dim_in = 6 * cfg.cam_embd.dimension
-            #if cfg.data.depth:
-            #    in_channels = 4
+
 
         self.encoder = SongUNet(cfg.data.training_resolution, 
                                 in_channels, 
@@ -452,10 +463,12 @@ class SingleImageSongUNetPredictor(nn.Module):
                                 emb_dim_in=emb_dim_in,
                                 channel_mult_noise=0,
                                 attn_resolutions=cfg.model.attention_resolutions)
+        print("inside SingleImageSongUnetPredictor after encoder")
         self.out = nn.Conv2d(in_channels=sum(out_channels), 
                                  out_channels=sum(out_channels),
                                  kernel_size=1)
-
+        print("inside SingleImageSongUnetPredictor after out")
+        print("out_channels: ", out_channels)
         start_channels = 0
         for out_channel, b, s in zip(out_channels, bias, scale):
             nn.init.xavier_uniform_(
@@ -466,6 +479,7 @@ class SingleImageSongUNetPredictor(nn.Module):
             start_channels += out_channel
 
     def forward(self, x, film_camera_emb=None, N_views_xa=1):
+        print("entered forward in SingleImageSongUNetPredictor")
         x = self.encoder(x, 
                          film_camera_emb=film_camera_emb,
                          N_views_xa=N_views_xa)
@@ -473,7 +487,9 @@ class SingleImageSongUNetPredictor(nn.Module):
         return self.out(x)
 
 def networkCallBack(cfg, name, out_channels, **kwargs):
+    print("entered networkCallBack")
     if name == "SingleUNet":
+        print("name is SingleUNet")
         return SingleImageSongUNetPredictor(cfg, out_channels, **kwargs)
     else:
         raise NotImplementedError
@@ -482,10 +498,12 @@ class GaussianSplatPredictor(nn.Module):
     def __init__(self, cfg):
         super(GaussianSplatPredictor, self).__init__()
         self.cfg = cfg
+        print("entered GaussianSplatPredictor")
         assert cfg.model.network_with_offset or cfg.model.network_without_offset, \
             "Need at least one network"
 
         if cfg.model.network_with_offset:
+            print("entered network_with_offset")
             split_dimensions, scale_inits, bias_inits = self.get_splits_and_inits(True, cfg)
             self.network_with_offset = networkCallBack(cfg, 
                                         cfg.model.name,
@@ -494,6 +512,7 @@ class GaussianSplatPredictor(nn.Module):
                                         bias = bias_inits)
             assert not cfg.model.network_without_offset, "Can only have one network"
         if cfg.model.network_without_offset:
+            print("entered network_without_offset")
             split_dimensions, scale_inits, bias_inits = self.get_splits_and_inits(False, cfg)
             self.network_wo_offset = networkCallBack(cfg, 
                                         cfg.model.name,
@@ -557,6 +576,7 @@ class GaussianSplatPredictor(nn.Module):
         bias_inits = []
 
         if with_offset:
+            print("entered with_offset in get_splits_and_inits")
             split_dimensions = split_dimensions + [1, 3, 1, 3, 4, 3]
             scale_inits = scale_inits + [cfg.model.depth_scale, 
                            cfg.model.xyz_scale, 
@@ -571,6 +591,7 @@ class GaussianSplatPredictor(nn.Module):
                           0.0,
                           0.0]
         else:
+            print("entered without_offset in get_splits_and_inits")
             split_dimensions = split_dimensions + [1, 1, 3, 4, 3]
             scale_inits = scale_inits + [cfg.model.depth_scale, 
                            cfg.model.opacity_scale, 
@@ -648,37 +669,20 @@ class GaussianSplatPredictor(nn.Module):
 
         return shs_transformed
 
-    # def transform_rotations(self, rotations, source_cv2wT_quat):
-    #     """
-    #     Applies a transform that rotates the predicted rotations from 
-    #     camera space to world space.
-    #     Args:
-    #         rotations: predicted in-camera rotation quaternions (B x N x 4)
-    #         source_cameras_to_world: transformation quaternions from 
-    #             camera-to-world matrices transposed(B x 4)
-    #     Retures:
-    #         rotations with appropriately applied transform to world space
-    #     """
+    def transform_rotations(self, rotations, source_cv2wT_quat):
+        """
+        Applies a transform that rotates the predicted rotations from 
+        camera space to world space.
+        Args:
+            rotations: predicted in-camera rotation quaternions (B x N x 4)
+            source_cameras_to_world: transformation quaternions from 
+                camera-to-world matrices transposed(B x 4)
+        Retures:
+            rotations with appropriately applied transform to world space
+        """
 
-    #     Mq = source_cv2wT_quat.unsqueeze(1).expand(*rotations.shape)
+        Mq = source_cv2wT_quat.unsqueeze(1).expand(*rotations.shape)
 
-    #     rotations = quaternion_raw_multiply(Mq, rotations) 
-        
-    #     return rotations
-    
-    def transform_rotations(self, rotations, source_cv2wT_quat=None):
-        if source_cv2wT_quat is None:
-            print("Warning: source_cv2wT_quat is None. Skipping rotation transformation.")
-            return rotations
-        
-        if source_cv2wT_quat.dim() == 4:  # It's a 4x4 matrix
-            source_cv2wT_quat = matrix_to_quaternion(source_cv2wT_quat[:, :3, :3])
-        
-        if source_cv2wT_quat.shape[-1] != 4:
-            print(f"Warning: Unexpected shape for source_cv2wT_quat: {source_cv2wT_quat.shape}. Skipping rotation transformation.")
-            return rotations
-        
-        Mq = source_cv2wT_quat.unsqueeze(1).expand(-1, rotations.shape[1], -1)
         rotations = quaternion_raw_multiply(Mq, rotations) 
         
         return rotations
@@ -708,7 +712,7 @@ class GaussianSplatPredictor(nn.Module):
                 source_cv2wT_quat=None,
                 focals_pixels=None,
                 activate_output=True):
-
+        print("entered forward of GaussianSplatPredictor")
         B = x.shape[0]
         N_views = x.shape[1]
         # UNet attention will reshape outputs so that there is cross-view attention
@@ -741,7 +745,7 @@ class GaussianSplatPredictor(nn.Module):
         x = x.contiguous(memory_format=torch.channels_last)
 
         if self.cfg.model.network_with_offset:
-
+            print("entered network_with_offset in forward")
             split_network_outputs = self.network_with_offset(x,
                                                              film_camera_emb=film_camera_emb,
                                                              N_views_xa=N_views_xa
@@ -755,6 +759,7 @@ class GaussianSplatPredictor(nn.Module):
             pos = self.get_pos_from_network_output(depth, offset, focals_pixels, const_offset=const_offset)
 
         else:
+            print("entered network_without_offset in forward")
             split_network_outputs = self.network_wo_offset(x, 
                                                            film_camera_emb=film_camera_emb,
                                                            N_views_xa=N_views_xa
@@ -813,5 +818,5 @@ class GaussianSplatPredictor(nn.Module):
 
         out_dict = self.multi_view_union(out_dict, B, N_views)
         out_dict = self.make_contiguous(out_dict)
-
+        print("exiting forward of GaussianSplatPredictor")
         return out_dict
