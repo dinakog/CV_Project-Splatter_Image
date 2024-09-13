@@ -11,12 +11,12 @@ general:
   mixed_precision: false
 data:
   training_resolution: 64 #128
-  subset: -1
+  subset: 0.5 #-1
   input_images: 1
   origin_distances: false
   depth: false
 opt:
-  iterations: 20000 #800001
+  iterations: 4000 #800001
   base_lr: 0.00005
   batch_size: 10 #8
   betas:

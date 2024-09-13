@@ -38,10 +38,13 @@ class SRNDataset(SharedDataset):
         self.intrins = sorted(
             glob.glob(os.path.join(self.base_path, "*", "intrinsics.txt"))
         )
+        data_len = len(self.intrins)
+
+        if cfg.data.subset != -1:
+            subset_size = int(cfg.data.subset * data_len)
+            self.intrins = self.intrins[:subset_size]
 
         print(len(self.intrins))
-        if cfg.data.subset != -1:
-            self.intrins = self.intrins[:cfg.data.subset]
 
         self.projection_matrix = getProjectionMatrix(
             znear=self.cfg.data.znear, zfar=self.cfg.data.zfar,

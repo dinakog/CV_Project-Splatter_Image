@@ -361,7 +361,7 @@ def parse_arguments():
     parser.add_argument('--out_folder', type=str, default='out', help='Output folder to save renders (default: out)')
     parser.add_argument('--save_vis', type=int, default=0, help='Number of examples for which to save renders (default: 0)')
     parser.add_argument('--save_model_output', type=str, default=None, help='Save raw model outputs',
-                        choices=['all', 'rbg', 'opacity', 'depth', 'xyz', 'scale'])
+                        choices=['all', 'rbg', 'opacity', 'depth', 'xyz', 'scale', 'xyz_3d'])
     return parser.parse_args()
 
 if __name__ == "__main__":

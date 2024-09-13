@@ -11,6 +11,7 @@ out/**/*.gif
 out/**/*.bmp
 out/**/*.tiff
 out/**/*.svg
+out/**/*.html
 
 # ignore all files in out folder and all subfolders
 output/**/*.jpeg

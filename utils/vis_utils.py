@@ -12,6 +12,9 @@ from matplotlib import pyplot as plt
 from utils.sh_utils import eval_sh
 from einops import rearrange
 
+from mpl_toolkits.mplot3d import Axes3D
+import plotly.graph_objects as go
+
 def gridify():
 
     out_folder = "grids_objaverse"
@@ -108,6 +111,31 @@ def comparisons():
             im_out = Image.fromarray(grid)
             im_out.save(os.path.join(out_folder, "{:05d}.png".format(im_idx)))
 
+def vis_xyz_3d(data, path):
+    os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+    x = data[:, :, 0]
+    y = data[:, :, 1]
+    z = data[:, :, 2]
+    print(x)
+    print(y)
+    print(z)
+
+    fig = go.Figure(data=[go.Scatter3d(
+        x=x, y=y, z=z,
+        mode='markers',
+        marker=dict(size=8, color='red')  # You can adjust the size here
+    )])
+    fig.show()
+
+    # Set axis labels
+    fig.update_layout(scene=dict(
+        xaxis_title='X axis',
+        yaxis_title='Y axis',
+        zaxis_title='Z axis'
+    ))
+
+    fig.write_html(path + ".html")
+
 def vis_image_preds(image_preds: dict, folder_out: str, save_m_out=None):
     """
     Visualises network's image predictions.
@@ -153,6 +181,8 @@ def vis_image_preds(image_preds: dict, folder_out: str, save_m_out=None):
             error_counter += 1
     if save_m_out is None or save_m_out == 'all' or save_m_out == 'opacity':
         plt.imsave(os.path.join(folder_out, "opacity.png"), image_preds_reshaped["opacity"].numpy())
+    if save_m_out is None or save_m_out == 'all' or save_m_out == 'xyz_3d':
+        vis_xyz_3d(image_preds_reshaped["xyz"].cpu().numpy(), os.path.join(folder_out, "xyz_3d"))
     if save_m_out is None or save_m_out == 'all' or save_m_out == 'xyz':
         plt.imsave(os.path.join(folder_out, "xyz.png"),
                    (image_preds_reshaped["xyz"] * image_preds_reshaped["opacity"] + 1 - image_preds_reshaped["opacity"]).numpy())
