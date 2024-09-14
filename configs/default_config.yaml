@@ -17,7 +17,7 @@ data:
   depth: false
 opt:
   iterations: 4000 #800001
-  base_lr: 0.00005
+  base_lr: 0.00001
   batch_size: 10 #8
   betas:
     - 0.9

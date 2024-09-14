@@ -231,7 +231,8 @@ def main(cfg: DictConfig):
             rendered_images = torch.stack(rendered_images, dim=0)
             gt_images = torch.stack(gt_images, dim=0)
             # Loss computation
-            l12_loss_sum = loss_fn(rendered_images, gt_images) 
+            l12_loss_sum = loss_fn(rendered_images, gt_images)
+
             if cfg.opt.lambda_lpips != 0:
                 lpips_loss_sum = torch.mean(
                     lpips_fn(rendered_images * 2 - 1, gt_images * 2 - 1),

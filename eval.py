@@ -82,7 +82,8 @@ def evaluate_dataset(model, dataloader, device, model_cfg, save_vis=0, out_folde
                                       data["origin_distances"][:, :model_cfg.data.input_images, ...]],
                                       dim=2)
         else:
-            input_images = data["gt_images"][:, :model_cfg.data.input_images, ...]
+            #input_images = data["gt_images"][:, :model_cfg.data.input_images, ...]
+            input_images = data["gt_rgbds"][:, :model_cfg.data.input_images, ...]
 
         example_id = dataloader.dataset.get_example_id(d_idx)
 
@@ -377,7 +378,7 @@ def parse_arguments():
                         help='Split to evaluate on (default: test). \
                         Using vis renders loops and does not return scores - to be used for visualisation. \
                         You can also use this to evaluate on the training or validation splits.')
-    parser.add_argument('--out_folder', type=str, default='SRN_Full\srn_cars\cars_test', help='Output folder to save renders (default: out)')
+    parser.add_argument('--out_folder', type=str, default='out', help='Output folder to save renders (default: out)')
     parser.add_argument('--save_vis', type=int, default=0, help='Number of examples for which to save renders (default: 0)')
     parser.add_argument('--save_model_output', type=str, default=None, help='Save raw model outputs',
                         choices=['all', 'rbg', 'opacity', 'depth', 'xyz', 'scale', 'xyz_3d', 'rgbd'])
