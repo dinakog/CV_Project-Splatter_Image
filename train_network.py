@@ -176,7 +176,8 @@ def main(cfg: DictConfig):
                                 dim=2)
             else:
                 focals_pixels_pred = None
-                input_images = data["gt_images"][:, :cfg.data.input_images, ...]
+                #input_images = data["gt_images"][:, :cfg.data.input_images, ...]
+                input_images = data["gt_rgbds"][:, :cfg.data.input_images, ...]
 
             gaussian_splats = gaussian_predictor(input_images,
                                                 data["view_to_world_transforms"][:, :cfg.data.input_images, ...],

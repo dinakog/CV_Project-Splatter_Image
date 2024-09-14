@@ -19,6 +19,7 @@ from scene.gaussian_predictor import GaussianSplatPredictor
 from datasets.dataset_factory import get_dataset
 from utils.loss_utils import ssim as ssim_fn
 from utils.vis_utils import vis_image_preds
+import numpy as np
 
 class Metricator():
     def __init__(self, device):
@@ -30,8 +31,7 @@ class Metricator():
         return psnr, ssim, lpips
 
 @torch.no_grad()
-def evaluate_dataset(model, dataloader, device, model_cfg, save_vis=0, out_folder=None
-                     ):
+def evaluate_dataset(model, dataloader, device, model_cfg, save_vis=0, out_folder=None):
     """
     Runs evaluation on the dataset passed in the dataloader. 
     Computes, prints and saves PSNR, SSIM, LPIPS.
@@ -256,11 +256,16 @@ def get_raw_model_outputs(model, dataloader, device, model_cfg, save_m_out, out_
 
         example_id = dataloader.dataset.get_example_id(d_idx)
 
-        out_example_gt = os.path.join(out_folder, "{}_".format(d_idx) + example_id + "_gt")
-        out_example = os.path.join(out_folder, "{}_".format(d_idx) + example_id + "_raw_out")
+        if save_m_out == 'rgbd':
+            rgbd_folder = os.path.join(out_folder, example_id, 'rgbd')
+            if not os.path.exists(rgbd_folder):
+                os.makedirs(rgbd_folder)
+        else:
+            out_example_gt = os.path.join(out_folder, "{}_".format(d_idx) + example_id + "_gt")
+            out_example = os.path.join(out_folder, "{}_".format(d_idx) + example_id + "_raw_out")
 
-        os.makedirs(out_example_gt, exist_ok=True)
-        os.makedirs(out_example, exist_ok=True)
+            os.makedirs(out_example_gt, exist_ok=True)
+            os.makedirs(out_example, exist_ok=True)
 
         for r_idx in range(data["gt_images"].shape[1]):
 
@@ -283,11 +288,25 @@ def get_raw_model_outputs(model, dataloader, device, model_cfg, save_m_out, out_
                                    rot_transform_quats,
                                    focals_pixels_pred)
 
-            torchvision.utils.save_image(data["gt_images"][0, r_idx, ...], os.path.join(out_example_gt, '{0:05d}'.format(r_idx) + ".png"))
+            if (save_m_out == 'rgbd'):
+                # Extract depth image form model outputs
+                depth_image = reconstruction['xyz'][:, :, 2].reshape(model_cfg.data.training_resolution,
+                                                                     model_cfg.data.training_resolution)
+                depth_min, depth_max = depth_image.min(), depth_image.max()
+                depth_image = (depth_image - depth_min) / (depth_max - depth_min)
+                depth_image = depth_image.unsqueeze(0)
 
-            save_folder = os.path.join(out_example, "{}".format(r_idx))
-            os.makedirs(save_folder, exist_ok=True)
-            vis_image_preds({k: v[0].contiguous() for k, v in reconstruction.items()}, str(save_folder), save_m_out)
+                # Create RGBD image by stacking gt image with depth image
+                rgbd_image= torch.cat((data["gt_images"][0, r_idx, ...], depth_image), dim=0)  # Shape (4, 128, 128)
+                torchvision.utils.save_image(rgbd_image, os.path.join(rgbd_folder, '{0:05d}'.format(r_idx) + ".png"))
+            else:
+                torchvision.utils.save_image(data["gt_images"][0, r_idx, ...],
+                                             os.path.join(out_example_gt, '{0:05d}'.format(r_idx) + ".png"))
+
+            if save_m_out is not None and save_m_out != 'rgbd':
+                save_folder = os.path.join(out_example, "{}".format(r_idx))
+                os.makedirs(save_folder, exist_ok=True)
+                vis_image_preds({k: v[0].contiguous() for k, v in reconstruction.items()}, str(save_folder), save_m_out)
 
 
 @torch.no_grad()
@@ -358,10 +377,10 @@ def parse_arguments():
                         help='Split to evaluate on (default: test). \
                         Using vis renders loops and does not return scores - to be used for visualisation. \
                         You can also use this to evaluate on the training or validation splits.')
-    parser.add_argument('--out_folder', type=str, default='out', help='Output folder to save renders (default: out)')
+    parser.add_argument('--out_folder', type=str, default='SRN_Full\srn_cars\cars_test', help='Output folder to save renders (default: out)')
     parser.add_argument('--save_vis', type=int, default=0, help='Number of examples for which to save renders (default: 0)')
     parser.add_argument('--save_model_output', type=str, default=None, help='Save raw model outputs',
-                        choices=['all', 'rbg', 'opacity', 'depth', 'xyz', 'scale', 'xyz_3d'])
+                        choices=['all', 'rbg', 'opacity', 'depth', 'xyz', 'scale', 'xyz_3d', 'rgbd'])
     return parser.parse_args()
 
 if __name__ == "__main__":

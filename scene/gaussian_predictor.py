@@ -434,7 +434,7 @@ class SingleImageSongUNetPredictor(nn.Module):
         self.out_channels = out_channels
         self.cfg = cfg
         if cfg.cam_embd.embedding is None:
-            in_channels = 3
+            in_channels = 4  #3
             emb_dim_in = 0
             #if cfg.data.depth:
             #    in_channels = 4

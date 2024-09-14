@@ -19,6 +19,7 @@ class SRNDataset(SharedDataset):
                  dataset_name="train"):
         super().__init__()
         self.cfg = cfg
+        self.rgbd_data = False
 
         self.dataset_name = dataset_name
         if dataset_name == "vis":
@@ -56,7 +57,7 @@ class SRNDataset(SharedDataset):
         # in deterministic version the number of testing images
         # and number of training images are the same
         if self.cfg.data.input_images == 1:
-            self.test_input_idxs = [64]
+            self.test_input_idxs = [49]
         elif self.cfg.data.input_images == 2:
             self.test_input_idxs = [64, 128]
         else:
@@ -70,10 +71,17 @@ class SRNDataset(SharedDataset):
         dir_path = os.path.dirname(intrin_path)
         rgb_paths = sorted(glob.glob(os.path.join(dir_path, "rgb", "*")))
         pose_paths = sorted(glob.glob(os.path.join(dir_path, "pose", "*")))
+        rgbd_paths = sorted(glob.glob(os.path.join(dir_path, "rgbd", "*")))
         assert len(rgb_paths) == len(pose_paths)
+        if len(rgbd_paths) > 0:
+            assert len(rgbd_paths) == len(pose_paths)
+            self.rgbd_data = True
+        else:
+            self.rgbd_data = False
 
         if not hasattr(self, "all_rgbs"):
             self.all_rgbs = {}
+            self.all_rgbds = {} # Store RGBD images
             self.all_world_view_transforms = {}
             self.all_view_to_world_transforms = {}
             self.all_full_proj_transforms = {}
@@ -81,19 +89,26 @@ class SRNDataset(SharedDataset):
 
         if example_id not in self.all_rgbs.keys():
             self.all_rgbs[example_id] = []
+            self.all_rgbds[example_id] = []  # initialize RGBD images
             self.all_world_view_transforms[example_id] = []
             self.all_full_proj_transforms[example_id] = []
             self.all_camera_centers[example_id] = []
             self.all_view_to_world_transforms[example_id] = []
 
-            cam_infos = readCamerasFromTxt(rgb_paths, pose_paths, [i for i in range(len(rgb_paths))])
+            cam_infos = readCamerasFromTxt(rgb_paths, rgbd_paths, pose_paths, [i for i in range(len(rgb_paths))])
 
             for cam_info in cam_infos:
                 R = cam_info.R
                 T = cam_info.T
 
+                # Load and process RGB image
                 self.all_rgbs[example_id].append(PILtoTorch(cam_info.image, 
                                                             (self.cfg.data.training_resolution, self.cfg.data.training_resolution)).clamp(0.0, 1.0)[:3, :, :])
+
+                # Load and process Depth image
+                if cam_info.rgbd is not None:
+                    self.all_rgbds[example_id].append(PILtoTorch(cam_info.rgbd,
+                                                            (self.cfg.data.training_resolution, self.cfg.data.training_resolution)).clamp(0.0, 1.0)[:4, :, :])
 
                 world_view_transform = torch.tensor(getWorld2View2(R, T, trans, scale)).transpose(0, 1)
                 view_world_transform = torch.tensor(getView2World(R, T, trans, scale)).transpose(0, 1)
@@ -111,6 +126,8 @@ class SRNDataset(SharedDataset):
             self.all_full_proj_transforms[example_id] = torch.stack(self.all_full_proj_transforms[example_id])
             self.all_camera_centers[example_id] = torch.stack(self.all_camera_centers[example_id])
             self.all_rgbs[example_id] = torch.stack(self.all_rgbs[example_id])
+            if self.rgbd_data:
+                self.all_rgbds[example_id] = torch.stack(self.all_rgbds[example_id])  # stack depth images
 
     def get_example_id(self, index):
         intrin_path = self.intrins[index]
@@ -133,15 +150,25 @@ class SRNDataset(SharedDataset):
             input_idxs = self.test_input_idxs
             
             frame_idxs = torch.cat([torch.tensor(input_idxs), 
-                                    torch.tensor([i for i in range(251) if i not in input_idxs])], dim=0) 
+                                    torch.tensor([i for i in range(251) if i not in input_idxs])], dim=0)
 
-        images_and_camera_poses = {
-            "gt_images": self.all_rgbs[example_id][frame_idxs].clone(),
-            "world_view_transforms": self.all_world_view_transforms[example_id][frame_idxs],
-            "view_to_world_transforms": self.all_view_to_world_transforms[example_id][frame_idxs],
-            "full_proj_transforms": self.all_full_proj_transforms[example_id][frame_idxs],
-            "camera_centers": self.all_camera_centers[example_id][frame_idxs]
-        }
+        if self.rgbd_data:
+            images_and_camera_poses = {
+                "gt_images": self.all_rgbs[example_id][frame_idxs].clone(),
+                "gt_rgbds": self.all_rgbds[example_id][frame_idxs].clone(),  # clone depth images
+                "world_view_transforms": self.all_world_view_transforms[example_id][frame_idxs],
+                "view_to_world_transforms": self.all_view_to_world_transforms[example_id][frame_idxs],
+                "full_proj_transforms": self.all_full_proj_transforms[example_id][frame_idxs],
+                "camera_centers": self.all_camera_centers[example_id][frame_idxs]
+            }
+        else:
+            images_and_camera_poses = {
+                "gt_images": self.all_rgbs[example_id][frame_idxs].clone(),
+                "world_view_transforms": self.all_world_view_transforms[example_id][frame_idxs],
+                "view_to_world_transforms": self.all_view_to_world_transforms[example_id][frame_idxs],
+                "full_proj_transforms": self.all_full_proj_transforms[example_id][frame_idxs],
+                "camera_centers": self.all_camera_centers[example_id][frame_idxs]
+            }
 
         images_and_camera_poses = self.make_poses_relative_to_first(images_and_camera_poses)
         images_and_camera_poses["source_cv2wT_quat"] = self.get_source_cw2wT(images_and_camera_poses["view_to_world_transforms"])

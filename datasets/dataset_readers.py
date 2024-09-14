@@ -15,13 +15,14 @@ class CameraInfo(NamedTuple):
     FovY: np.array
     FovX: np.array
     image: np.array
+    rgbd: np.array
     image_path: str
     image_name: str
     width: int
     height: int
 
 
-def readCamerasFromTxt(rgb_paths, pose_paths, idxs):
+def readCamerasFromTxt(rgb_paths, rgbd_paths, pose_paths, idxs):
     cam_infos = []
     # Transform fov from degrees to radians
     fovx = 51.98948897809546 * 2 * np.pi / 360
@@ -43,11 +44,16 @@ def readCamerasFromTxt(rgb_paths, pose_paths, idxs):
         # SRN images already are RGB with white background
         image = Image.open(image_path)
 
+        rgbd = None
+        if len(rgbd_paths) > 0:
+            rgbd_path = rgbd_paths[idx]  # Load depth image path
+            rgbd = Image.open(rgbd_path)  # Load depth image
+
         fovy = focal2fov(fov2focal(fovx, image.size[0]), image.size[1])
         FovY = fovy 
         FovX = fovx
 
-        cam_infos.append(CameraInfo(uid=idx, R=R, T=T, FovY=FovY, FovX=FovX, image=image,
+        cam_infos.append(CameraInfo(uid=idx, R=R, T=T, FovY=FovY, FovX=FovX, image=image, rgbd=rgbd,
                         image_path=image_path, image_name=image_name, width=image.size[0], height=image.size[1]))
         
     return cam_infos
