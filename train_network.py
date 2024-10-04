@@ -302,7 +302,8 @@ def main(cfg: DictConfig):
                                                 dim=2)
                     else:
                         focals_pixels_pred = None
-                        input_images = vis_data["gt_images"][:, :cfg.data.input_images, ...]
+                        #input_images = vis_data["gt_images"][:, :cfg.data.input_images, ...]
+                        input_images = vis_data["gt_rgbds"][:, :cfg.data.input_images, ...]
 
                     gaussian_splats_vis = gaussian_predictor(input_images,
                                                         vis_data["view_to_world_transforms"][:, :cfg.data.input_images, ...],
@@ -311,7 +312,8 @@ def main(cfg: DictConfig):
 
                     test_loop = []
                     test_loop_gt = []
-                    for r_idx in range(vis_data["gt_images"].shape[1]):
+                    #for r_idx in range(vis_data["gt_images"].shape[1]):
+                    for r_idx in range(vis_data["gt_rgbds"].shape[1]):
                         # We don't change the input or output of the network, just the rendering cameras
                         if "focals_pixels" in vis_data.keys():
                             focals_pixels_render = vis_data["focals_pixels"][0, r_idx]
@@ -324,7 +326,8 @@ def main(cfg: DictConfig):
                                             background,
                                             cfg,
                                             focals_pixels=focals_pixels_render)["render"]
-                        test_loop_gt.append((np.clip(vis_data["gt_images"][0, r_idx].detach().cpu().numpy(), 0, 1)*255).astype(np.uint8))
+                        #test_loop_gt.append((np.clip(vis_data["gt_images"][0, r_idx].detach().cpu().numpy(), 0, 1)*255).astype(np.uint8))
+                        test_loop_gt.append((np.clip(vis_data["gt_rgbds"][0, r_idx].detach().cpu().numpy(), 0, 1)*255).astype(np.uint8))
                         test_loop.append((np.clip(test_image.detach().cpu().numpy(), 0, 1)*255).astype(np.uint8))
         
                     wandb.log({"rot": wandb.Video(np.asarray(test_loop), fps=20, format="mp4")},

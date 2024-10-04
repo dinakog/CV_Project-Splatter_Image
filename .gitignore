@@ -30,3 +30,4 @@ __pycache__
 experiments_out
 configs/hydra/cluster.yaml
 SRN_FULL/
+CO3D/

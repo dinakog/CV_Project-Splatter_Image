@@ -439,7 +439,7 @@ class SingleImageSongUNetPredictor(nn.Module):
             #if cfg.data.depth:
             #    in_channels = 4
         else:
-            in_channels = 3
+            in_channels = 4
             emb_dim_in = 6 * cfg.cam_embd.dimension
             #if cfg.data.depth:
             #    in_channels = 4

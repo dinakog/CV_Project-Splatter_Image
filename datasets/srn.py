@@ -71,7 +71,7 @@ class SRNDataset(SharedDataset):
         dir_path = os.path.dirname(intrin_path)
         rgb_paths = sorted(glob.glob(os.path.join(dir_path, "rgb", "*")))
         pose_paths = sorted(glob.glob(os.path.join(dir_path, "pose", "*")))
-        rgbd_paths = sorted(glob.glob(os.path.join(dir_path, "rgbd", "*")))
+        rgbd_paths = sorted(glob.glob(os.path.join(dir_path, "rgbdnn", "*")))
         assert len(rgb_paths) == len(pose_paths)
         if len(rgbd_paths) > 0:
             assert len(rgbd_paths) == len(pose_paths)
