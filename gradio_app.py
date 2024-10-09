@@ -42,7 +42,7 @@ def main():
     model_path = hf_hub_download(repo_id="szymanowiczs/splatter-image-multi-category-v1", 
                                 filename="model_latest.pth")
 
-    model = GaussianSplatPredictor(model_cfg)
+    model = GaussianSplatPredictor(model_cfg, 3)
 
     ckpt_loaded = torch.load(model_path, map_location=device)
     model.load_state_dict(ckpt_loaded["model_state_dict"])

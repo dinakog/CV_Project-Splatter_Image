@@ -72,18 +72,28 @@ def evaluate_dataset(model, dataloader, device, model_cfg, save_vis=0, out_folde
 
         rot_transform_quats = data["source_cv2wT_quat"][:, :model_cfg.data.input_images]
 
-        if model_cfg.data.category == "hydrants" or model_cfg.data.category == "teddybears":
+        if (model_cfg.data.category == "hydrants" or model_cfg.data.category == "teddybears" or
+                model_cfg.data.category == "cars_co3d"):
             focals_pixels_pred = data["focals_pixels"][:, :model_cfg.data.input_images, ...]
         else:
             focals_pixels_pred = None
 
         if model_cfg.data.origin_distances:
             input_images = torch.cat([data["gt_images"][:, :model_cfg.data.input_images, ...],
-                                      data["origin_distances"][:, :model_cfg.data.input_images, ...]],
-                                      dim=2)
+                                                               data["origin_distances"][:, :model_cfg.data.input_images, ...]],
+                                                               dim=2)
+            if "rgbd" in model_cfg:
+                if model_cfg.rgbd.type == "rgbd":
+                    input_images = torch.cat([data["gt_rgbds"][:, :model_cfg.data.input_images, ...],
+                                              data["origin_distances"][:, :model_cfg.data.input_images, ...]],
+                                             dim=2)
         else:
-            #input_images = data["gt_images"][:, :model_cfg.data.input_images, ...]
-            input_images = data["gt_rgbds"][:, :model_cfg.data.input_images, ...]
+            input_images = data["gt_images"][:, :model_cfg.data.input_images, ...]
+            if "rgbd" in model_cfg:
+                if model_cfg.rgbd.type == "rgbd":
+                    input_images = data["gt_rgbds"][:, :model_cfg.data.input_images, ...]
+                elif model_cfg.rgbd.type == "rgbdnn":
+                    input_images = data["gt_rgbdnns"][:, :model_cfg.data.input_images, ...]
 
         example_id = dataloader.dataset.get_example_id(d_idx)
 
@@ -256,58 +266,64 @@ def get_raw_model_outputs(model, dataloader, device, model_cfg, save_m_out, out_
         data = {k: v.to(device) for k, v in data.items()}
 
         example_id = dataloader.dataset.get_example_id(d_idx)
+        depth_path = os.path.join('./SRN_Full/srn_cars/cars_test/', example_id, 'output.txt')
 
-        if save_m_out == 'rgbd':
-            rgbd_folder = os.path.join(out_folder, example_id, 'rgbd')
-            if not os.path.exists(rgbd_folder):
-                os.makedirs(rgbd_folder)
-        else:
-            out_example_gt = os.path.join(out_folder, "{}_".format(d_idx) + example_id + "_gt")
-            out_example = os.path.join(out_folder, "{}_".format(d_idx) + example_id + "_raw_out")
-
-            os.makedirs(out_example_gt, exist_ok=True)
-            os.makedirs(out_example, exist_ok=True)
-
-        for r_idx in range(data["gt_images"].shape[1]):
-
-            rot_transform_quats = data["source_cv2wT_quat"][:, r_idx:r_idx+1, ...]
-
-            if model_cfg.data.category == "hydrants" or model_cfg.data.category == "teddybears":
-                focals_pixels_pred = data["focals_pixels"][:, r_idx:r_idx+1, :, :, :],
+        with open(depth_path, 'w') as file:
+            if save_m_out == 'rgbd':
+                rgbd_folder = os.path.join(out_folder, example_id, 'rgbd')
+                if not os.path.exists(rgbd_folder):
+                    os.makedirs(rgbd_folder)
             else:
-                focals_pixels_pred = None
+                out_example_gt = os.path.join(out_folder, "{}_".format(d_idx) + example_id + "_gt")
+                out_example = os.path.join(out_folder, "{}_".format(d_idx) + example_id + "_raw_out")
 
-            if model_cfg.data.origin_distances:
-                im = torch.cat([data["gt_images"][:, r_idx:r_idx+1, :, :, :],
-                                data["origin_distances"][:, r_idx:r_idx+1, :, :, :]], dim=2)
-            else:
-                im = data["gt_images"][:, r_idx:r_idx+1, :, :, :]
+                os.makedirs(out_example_gt, exist_ok=True)
+                os.makedirs(out_example, exist_ok=True)
 
-            # batch has length 1, the first image is conditioning
-            reconstruction = model(im,
-                                   data["view_to_world_transforms"][:, r_idx:r_idx+1, ...],
-                                   rot_transform_quats,
-                                   focals_pixels_pred)
+            for r_idx in range(data["gt_images"].shape[1]):
+                rot_transform_quats = data["source_cv2wT_quat"][:, r_idx:r_idx+1, ...]
 
-            if (save_m_out == 'rgbd'):
-                # Extract depth image form model outputs
-                depth_image = reconstruction['xyz'][:, :, 2].reshape(model_cfg.data.training_resolution,
-                                                                     model_cfg.data.training_resolution)
-                depth_min, depth_max = depth_image.min(), depth_image.max()
-                depth_image = (depth_image - depth_min) / (depth_max - depth_min)
-                depth_image = depth_image.unsqueeze(0)
+                if (model_cfg.data.category == "hydrants" or model_cfg.data.category == "teddybears" or
+                        model_cfg.data.category == "cars_co3d"):
+                    focals_pixels_pred = data["focals_pixels"][:, r_idx:r_idx+1, :, :, :],
+                else:
+                    focals_pixels_pred = None
 
-                # Create RGBD image by stacking gt image with depth image
-                rgbd_image= torch.cat((data["gt_images"][0, r_idx, ...], depth_image), dim=0)  # Shape (4, 128, 128)
-                torchvision.utils.save_image(rgbd_image, os.path.join(rgbd_folder, '{0:05d}'.format(r_idx) + ".png"))
-            else:
-                torchvision.utils.save_image(data["gt_images"][0, r_idx, ...],
-                                             os.path.join(out_example_gt, '{0:05d}'.format(r_idx) + ".png"))
+                if model_cfg.data.origin_distances:
+                    im = torch.cat([data["gt_images"][:, r_idx:r_idx+1, :, :, :],
+                                    data["origin_distances"][:, r_idx:r_idx+1, :, :, :]], dim=2)
+                else:
+                    im = data["gt_images"][:, r_idx:r_idx+1, :, :, :]
 
-            if save_m_out is not None and save_m_out != 'rgbd':
-                save_folder = os.path.join(out_example, "{}".format(r_idx))
-                os.makedirs(save_folder, exist_ok=True)
-                vis_image_preds({k: v[0].contiguous() for k, v in reconstruction.items()}, str(save_folder), save_m_out)
+                # batch has length 1, the first image is conditioning
+                reconstruction = model(im,
+                                       data["view_to_world_transforms"][:, r_idx:r_idx+1, ...],
+                                       rot_transform_quats,
+                                       focals_pixels_pred)
+
+                if (save_m_out == 'rgbd'):
+                    # Extract depth image form model outputs
+                    depth_image = reconstruction['xyz'][:, :, 2].reshape(model_cfg.data.training_resolution,
+                                                                         model_cfg.data.training_resolution)
+                    # Create txt file with min max depth values before normalization
+                    depth_min, depth_max = depth_image.min(), depth_image.max()
+                    print(rgbd_folder, r_idx, depth_min.item(), depth_max.item(), file=file)
+
+                    # Normalize depth data to 0-1
+                    depth_image = (depth_image - depth_min) / (depth_max - depth_min)
+                    depth_image = depth_image.unsqueeze(0)
+
+                    # Create RGBD image by stacking gt image with depth image
+                    rgbd_image= torch.cat((data["gt_images"][0, r_idx, ...], depth_image), dim=0)  # Shape (4, 128, 128)
+                    torchvision.utils.save_image(rgbd_image, os.path.join(rgbd_folder, '{0:05d}'.format(r_idx) + ".png"))
+                else:
+                    torchvision.utils.save_image(data["gt_images"][0, r_idx, ...],
+                                                 os.path.join(out_example_gt, '{0:05d}'.format(r_idx) + ".png"))
+
+                if save_m_out is not None and save_m_out != 'rgbd':
+                    save_folder = os.path.join(out_example, "{}".format(r_idx))
+                    os.makedirs(save_folder, exist_ok=True)
+                    vis_image_preds({k: v[0].contiguous() for k, v in reconstruction.items()}, str(save_folder), save_m_out)
 
 
 @torch.no_grad()
@@ -342,8 +358,13 @@ def main(dataset_name, experiment_path, device_idx, split='test', save_vis=0, ou
         else:
             assert training_cfg.data.category == dataset_name, "Model-dataset mismatch"
 
+    in_channels = 3
+    if "rgbd" in training_cfg:
+        if training_cfg.rgbd.type == "rgbd" or training_cfg.rgbd.type == "rgbdnn":
+            in_channels = 4
+
     # load model
-    model = GaussianSplatPredictor(training_cfg)
+    model = GaussianSplatPredictor(training_cfg, in_channels)
     ckpt_loaded = torch.load(model_path, map_location=device)
     model.load_state_dict(ckpt_loaded["model_state_dict"])
     model = model.to(device)
@@ -355,8 +376,12 @@ def main(dataset_name, experiment_path, device_idx, split='test', save_vis=0, ou
         training_cfg.data.category = "gso"
     # instantiate dataset loader
     dataset = get_dataset(training_cfg, split)
-    dataloader = DataLoader(dataset, batch_size=1, shuffle=False,
-                            persistent_workers=True, pin_memory=True, num_workers=1)
+    if training_cfg.data.category == "cars_co3d":
+        dataloader = DataLoader(dataset, batch_size=1, shuffle=False,
+                            persistent_workers=False, pin_memory=True, num_workers=0)
+    else:
+        dataloader = DataLoader(dataset, batch_size=1, shuffle=False,
+                                persistent_workers=True, pin_memory=True, num_workers=1)
 
     if save_m_out is not None:
         get_raw_model_outputs(model, dataloader, device, training_cfg, save_m_out, out_folder=out_folder)
@@ -371,7 +396,7 @@ def main(dataset_name, experiment_path, device_idx, split='test', save_vis=0, ou
 def parse_arguments():
     parser = argparse.ArgumentParser(description='Evaluate model')
     parser.add_argument('dataset_name', type=str, help='Dataset to evaluate on', 
-                        choices=['objaverse', 'gso', 'cars', 'chairs', 'hydrants', 'teddybears', 'nmr'])
+                        choices=['objaverse', 'gso', 'cars', 'chairs', 'hydrants', 'teddybears', 'nmr', 'cars_co3d'])
     parser.add_argument('--experiment_path', type=str, default=None, help='Path to the parent folder of the model. \
                         If set to None, a pretrained model will be downloaded')
     parser.add_argument('--split', type=str, default='test', choices=['test', 'val', 'vis', 'train'],
@@ -384,8 +409,8 @@ def parse_arguments():
                         choices=['all', 'rbg', 'opacity', 'depth', 'xyz', 'scale', 'xyz_3d', 'rgbd'])
     return parser.parse_args()
 
-if __name__ == "__main__":
 
+if __name__ == "__main__":
     args = parse_arguments()
 
     dataset_name = args.dataset_name

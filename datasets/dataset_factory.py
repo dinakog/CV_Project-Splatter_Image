@@ -7,7 +7,7 @@ from .gso import GSODataset
 def get_dataset(cfg, name):
     if cfg.data.category == "cars" or cfg.data.category == "chairs":
         return SRNDataset(cfg, name)
-    elif cfg.data.category == "hydrants" or cfg.data.category == "teddybears":
+    elif cfg.data.category == "hydrants" or cfg.data.category == "teddybears" or cfg.data.category == "cars_co3d":
         return CO3DDataset(cfg, name)
     elif cfg.data.category == "nmr":
         return NMRDataset(cfg, name)

@@ -10,15 +10,15 @@ general:
   num_devices: 1
   mixed_precision: false
 data:
-  training_resolution: 64 #128
-  subset: 1 #-1
+  training_resolution: 128 #128
+  subset: -1 #-1
   input_images: 1
   origin_distances: false
   depth: false
 opt:
-  iterations: 4000 #800001
+  iterations: 20000 #800001
   base_lr: 0.00005
-  batch_size: 10 #8
+  batch_size: 4 #8
   betas:
     - 0.9
     - 0.999
@@ -56,7 +56,11 @@ model:
 
 logging:
   ckpt_iterations: 1000
-  val_log: 10000
+  val_log: 30000
   loss_log: 10
   loop_log: 10000
-  render_log: 10000
+  render_log: 100
+
+rgbd:
+  type: none # can be rgbd / rgbdnn (depth from external nn)/ none (rgb data)
+  out_depth_enable: false

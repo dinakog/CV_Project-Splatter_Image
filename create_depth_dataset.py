@@ -44,7 +44,7 @@ def create_training_dataset(model, dataloader, device, model_cfg, out_folder):
         for r_idx in range(min(NUM_VIEWS_PER_OBJECT, data["gt_images"].shape[1])):
             # Prepare input data for the model
             rot_transform_quats = data["source_cv2wT_quat"][:, r_idx:r_idx+1, ...]
-            focals_pixels_pred = data["focals_pixels"][:, r_idx:r_idx+1, :, :, :] if model_cfg.data.category in ["hydrants", "teddybears"] else None
+            focals_pixels_pred = data["focals_pixels"][:, r_idx:r_idx+1, :, :, :] if model_cfg.data.category in ["hydrants", "teddybears", "cars_co3d"] else None
             im = data["gt_images"][:, r_idx:r_idx+1, :, :, :]
             
             # Save RGB image
