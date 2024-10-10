@@ -11,7 +11,7 @@ general:
   mixed_precision: false
 data:
   training_resolution: 64 #128
-  subset: 0.5 #-1
+  subset: 0.2 #-1
   input_images: 1
   origin_distances: false
   depth: false
@@ -56,7 +56,11 @@ model:
 
 logging:
   ckpt_iterations: 1000
-  val_log: 10000
+  val_log: 30000
   loss_log: 10
   loop_log: 10000
-  render_log: 10000
+  render_log: 100
+
+rgbd:
+  type: rgbdnn # can be rgbd / rgbdnn (depth from external nn)/ none (rgb data)
+  out_depth_enable: false

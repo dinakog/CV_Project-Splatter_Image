@@ -1,6 +1,6 @@
 # @package _global_
 opt:
   iterations: 2000 #100001
-  pretrained_ckpt: C:\Users\dinak\PyCharmsProjects\try\CV_Project-Splatter_Image\experiments_out\2024-09-07\16-00-01
+  pretrained_ckpt: C:\Users\dinak\PyCharmsProjects\try\CV_Project-Splatter_Image\experiments_out\si_depth_20%_4000_2000_w_output_depth\19-49-14
   lambda_lpips: 0.01
   base_lr: 0.000005

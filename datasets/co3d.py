@@ -23,7 +23,7 @@ from .dataset_readers import readCamerasFromNpy
 from utils.general_utils import matrix_to_quaternion
 from utils.graphics_utils import getWorld2View2, getProjectionMatrix, getView2World, fov2focal
 
-CO3D_DATASET_ROOT = "splatter-image\co3d\OUTPUT_FOLDER" # Change this to where you saved preprocessed data
+CO3D_DATASET_ROOT = "./CO3D/OUTPUT_FOLDER"  # Change this to where you saved preprocessed data
 assert CO3D_DATASET_ROOT is not None, "Update the location of the CO3D Dataset"
 
 class CO3DDataset(SharedDataset):
@@ -36,22 +36,26 @@ class CO3DDataset(SharedDataset):
             self.dataset_name = "test"
 
         # assumes cfg.data.category ends with an "s", for example hydrantS, which
-        # is not included in the dataset name 
+        # is not included in the dataset name
+        suffix_len = 1
+        if cfg.data.category == "cars_co3d":
+            suffix_len = 6  # cars_co3d ends with 's_co3d'
+
         self.base_path = os.path.join(CO3D_DATASET_ROOT, 
-                                      "co3d_{}_for_gs".format(cfg.data.category[:-1]), 
+                                      "co3d_{}_for_gs".format(cfg.data.category[:-suffix_len]),
                                       self.dataset_name)
 
         frame_order_files = sorted(
             glob.glob(os.path.join(self.base_path, "*", "frame_order.txt"))
         )
         self.frame_order_files = []
-        exclude_sequences = NO_FG_COND_FRAME_SEQ[cfg.data.category[:-1]] + \
-            LARGE_FOCAL_FRAME_SEQ[cfg.data.category[:-1]] + \
-            NAN_SEQUENCES[cfg.data.category[:-1]] + \
-            EXCLUDE_SEQUENCE[cfg.data.category[:-1]] + \
-            CAMERAS_CLOSE_SEQUENCE[cfg.data.category[:-1]] + \
-            CAMERAS_FAR_AWAY_SEQUENCE[cfg.data.category[:-1]] + \
-            LOW_QUALITY_SEQUENCE[cfg.data.category[:-1]]
+        exclude_sequences = NO_FG_COND_FRAME_SEQ[cfg.data.category[:-suffix_len]] + \
+            LARGE_FOCAL_FRAME_SEQ[cfg.data.category[:-suffix_len]] + \
+            NAN_SEQUENCES[cfg.data.category[:-suffix_len]] + \
+            EXCLUDE_SEQUENCE[cfg.data.category[:-suffix_len]] + \
+            CAMERAS_CLOSE_SEQUENCE[cfg.data.category[:-suffix_len]] + \
+            CAMERAS_FAR_AWAY_SEQUENCE[cfg.data.category[:-suffix_len]] + \
+            LOW_QUALITY_SEQUENCE[cfg.data.category[:-suffix_len]]
 
         self.read_cameras()
 
@@ -64,7 +68,9 @@ class CO3DDataset(SharedDataset):
                     self.frame_order_files.append(frame_order_file)
 
         if cfg.data.subset != -1:
-            self.frame_order_files = self.frame_order_files[:cfg.data.subset]
+            data_len = len(self.frame_order_files)
+            subset_size = int(cfg.data.subset * data_len)
+            self.frame_order_files = self.frame_order_files[:subset_size]
 
         self.imgs_per_obj = self.cfg.opt.imgs_per_obj
 
@@ -101,7 +107,7 @@ class CO3DDataset(SharedDataset):
         camera_center_to_origin = - camera_to_world[3, :3]
         camera_z_vector = camera_to_world[2, :3]
         origin_distances = torch.dot(camera_center_to_origin, camera_z_vector).unsqueeze(0)
-        origin_distances = repeat(origin_distances, 'c -> c h w', 
+        origin_distances = repeat(origin_distances, 'c -> c h w',
                                 h=self.cfg.data.training_resolution, w=self.cfg.data.training_resolution)
 
         return origin_distances
@@ -120,7 +126,10 @@ class CO3DDataset(SharedDataset):
         focals_folder_path = os.path.join(self.base_path,
                                           os.path.basename(dir_path))
 
-        rgb_path = os.path.join(dir_path, "images_fg.npy")
+        rgb_path = os.path.join(dir_path, "images_full.npy")
+        if "rgbd" in self.cfg:
+            if self.cfg.rgbd.type != "none":
+                rgb_path = os.path.join(dir_path, "rgdb_images_full.npy")
 
         if not hasattr(self, "all_rgbs"):
             self.all_rgbs = {}
@@ -152,8 +161,8 @@ class CO3DDataset(SharedDataset):
             w2c_Rs_rmo = self.Rs[example_id]
 
             # Read cameras, convert into our camera convention and compute full projection matrices
-            cam_infos = readCamerasFromNpy(dir_path, 
-                                           w2c_Rs_rmo=w2c_Rs_rmo, 
+            cam_infos = readCamerasFromNpy(dir_path,
+                                           w2c_Rs_rmo=w2c_Rs_rmo,
                                            w2c_Ts_rmo=w2c_Ts_rmo,
                                            focals_folder_path=focals_folder_path)
 
@@ -195,7 +204,6 @@ class CO3DDataset(SharedDataset):
             self.all_origin_distances[example_id] = torch.stack(self.all_origin_distances[example_id])
             self.all_ray_embeddings[example_id] = torch.stack(self.all_ray_embeddings[example_id])
 
-
     def get_example_id(self, index):
         intrin_path = self.frame_order_files[index]
         example_id = os.path.basename(os.path.dirname(intrin_path))
@@ -214,7 +222,7 @@ class CO3DDataset(SharedDataset):
         else:
             input_idxs = self.test_input_idxs
             frame_idxs = torch.cat([torch.tensor(input_idxs), 
-                                    torch.tensor([i for i in range(len(self.all_rgbs[example_id])) if i not in input_idxs])], dim=0) 
+                                    torch.tensor([i for i in range(len(self.all_rgbs[example_id])) if i not in input_idxs])], dim=0)
 
         images_and_camera_poses = {
             "gt_images": self.all_rgbs[example_id][frame_idxs].clone(),
@@ -226,6 +234,19 @@ class CO3DDataset(SharedDataset):
             "origin_distances": self.all_origin_distances[example_id][frame_idxs],
             "ray_embeddings": self.all_ray_embeddings[example_id][frame_idxs]
         }
+        if "rgbd" in self.cfg:
+            if self.cfg.rgbd.type == "rgbd":
+                images_and_camera_poses = {
+                    "gt_images": self.all_rgbs[example_id][frame_idxs][:, :3].clone(),
+                    "gt_rgbds": self.all_rgbs[example_id][frame_idxs].clone(),
+                    "world_view_transforms": self.all_world_view_transforms[example_id][frame_idxs],
+                    "view_to_world_transforms": self.all_view_to_world_transforms[example_id][frame_idxs],
+                    "full_proj_transforms": self.all_full_proj_transforms[example_id][frame_idxs],
+                    "camera_centers": self.all_camera_centers[example_id][frame_idxs],
+                    "focals_pixels": self.all_focals_pixels[example_id][frame_idxs].clone(),
+                    "origin_distances": self.all_origin_distances[example_id][frame_idxs],
+                    "ray_embeddings": self.all_ray_embeddings[example_id][frame_idxs]
+                }
 
         images_and_camera_poses = self.make_poses_relative_to_first(images_and_camera_poses)
 

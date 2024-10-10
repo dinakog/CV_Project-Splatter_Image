@@ -2,6 +2,7 @@
 # and .npy files (CO3D)
 
 import os
+import torch
 from PIL import Image
 from typing import NamedTuple
 from utils.graphics_utils import focal2fov, fov2focal
@@ -15,13 +16,14 @@ class CameraInfo(NamedTuple):
     FovY: np.array
     FovX: np.array
     image: np.array
+    rgbd: np.array
     image_path: str
     image_name: str
     width: int
     height: int
 
 
-def readCamerasFromTxt(rgb_paths, pose_paths, idxs):
+def readCamerasFromTxt(rgb_paths, rgbd_paths, pose_paths, idxs):
     cam_infos = []
     # Transform fov from degrees to radians
     fovx = 51.98948897809546 * 2 * np.pi / 360
@@ -43,11 +45,16 @@ def readCamerasFromTxt(rgb_paths, pose_paths, idxs):
         # SRN images already are RGB with white background
         image = Image.open(image_path)
 
+        rgbd = None
+        if len(rgbd_paths) > 0:
+            rgbd_path = rgbd_paths[idx]  # Load depth image path
+            rgbd = Image.open(rgbd_path)  # Load depth image
+
         fovy = focal2fov(fov2focal(fovx, image.size[0]), image.size[1])
-        FovY = fovy 
+        FovY = fovy
         FovX = fovx
 
-        cam_infos.append(CameraInfo(uid=idx, R=R, T=T, FovY=FovY, FovX=FovX, image=image,
+        cam_infos.append(CameraInfo(uid=idx, R=R, T=T, FovY=FovY, FovX=FovX, image=image, rgbd=rgbd,
                         image_path=image_path, image_name=image_name, width=image.size[0], height=image.size[1]))
         
     return cam_infos
@@ -79,7 +86,7 @@ def readCamerasFromNpy(folder_path,
     camera_transform_matrix = np.eye(4)
     camera_transform_matrix[0, 0] *= -1
     camera_transform_matrix[1, 1] *= -1
-    
+
     # assume shape 128 x 128
     image_side = 128
 
@@ -101,7 +108,10 @@ def readCamerasFromNpy(folder_path,
         # Pytorch3D cameras have (x left, y right, z away axes)
         # need to transform to COLMAP / OpenCV (x right, y down, z forward)
         # transform axes and transpose to column major order
-        w2c = np.transpose(np.matmul(w2c_template, camera_transform_matrix))
+        w2c_template_torch = torch.tensor(w2c_template, dtype=torch.float32)
+        camera_transform_matrix_torch = torch.tensor(camera_transform_matrix, dtype=torch.float32)
+        w2c = torch.matmul(w2c_template_torch, camera_transform_matrix_torch).numpy().T
+        #w2c = np.transpose(np.matmul(w2c_template, camera_transform_matrix))
 
         # get the world-to-camera transform and set R, T
         # w2c = np.linalg.inv(c2w)
@@ -116,7 +126,26 @@ def readCamerasFromNpy(folder_path,
         FovY = focal2fov(focal_lengths_px[1], image_side) 
         FovX = focal2fov(focal_lengths_px[0], image_side)
 
-        cam_infos.append(CameraInfo(uid=fname, R=R, T=T, FovY=FovY, FovX=FovX, image=None,
+        cam_infos.append(CameraInfo(uid=fname, R=R, T=T, FovY=FovY, FovX=FovX, image=None, rgbd=None,
                         image_path=None, image_name=image_name, width=image_side, height=image_side))
-        
+
     return cam_infos
+
+def readDepthMinMax(depths_min_max_path):
+    depth_data = []
+
+    with open(depths_min_max_path, 'r') as file:
+        lines = file.readlines()
+
+        for line in lines:
+            # Split the line by spaces
+            parts = line.strip().split()
+
+            # Extract minDepth and maxDepth (assuming they are the 3rd and 4th columns)
+            min_depth = float(parts[2])
+            max_depth = float(parts[3])
+
+            # Append to the array as a list of [minDepth, maxDepth]
+            depth_data.append([min_depth, max_depth])
+
+    return depth_data

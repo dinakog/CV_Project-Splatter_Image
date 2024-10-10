@@ -429,17 +429,17 @@ class SongUNet(nn.Module):
 # NVIDIA copyright does not apply to the code below this line
 
 class SingleImageSongUNetPredictor(nn.Module):
-    def __init__(self, cfg, out_channels, bias, scale):
+    def __init__(self, cfg, out_channels, in_channels, bias, scale):
         super(SingleImageSongUNetPredictor, self).__init__()
         self.out_channels = out_channels
         self.cfg = cfg
         if cfg.cam_embd.embedding is None:
-            in_channels = 3
+            in_channels = in_channels
             emb_dim_in = 0
             #if cfg.data.depth:
             #    in_channels = 4
         else:
-            in_channels = 3
+            in_channels = in_channels
             emb_dim_in = 6 * cfg.cam_embd.dimension
             #if cfg.data.depth:
             #    in_channels = 4
@@ -472,14 +472,14 @@ class SingleImageSongUNetPredictor(nn.Module):
 
         return self.out(x)
 
-def networkCallBack(cfg, name, out_channels, **kwargs):
+def networkCallBack(cfg, name, out_channels, in_channels, **kwargs):
     if name == "SingleUNet":
-        return SingleImageSongUNetPredictor(cfg, out_channels, **kwargs)
+        return SingleImageSongUNetPredictor(cfg, out_channels, in_channels, **kwargs)
     else:
         raise NotImplementedError
 
 class GaussianSplatPredictor(nn.Module):
-    def __init__(self, cfg):
+    def __init__(self, cfg, in_channels):
         super(GaussianSplatPredictor, self).__init__()
         self.cfg = cfg
         assert cfg.model.network_with_offset or cfg.model.network_without_offset, \
@@ -490,6 +490,7 @@ class GaussianSplatPredictor(nn.Module):
             self.network_with_offset = networkCallBack(cfg, 
                                         cfg.model.name,
                                         split_dimensions,
+                                        in_channels,
                                         scale = scale_inits,
                                         bias = bias_inits)
             assert not cfg.model.network_without_offset, "Can only have one network"
@@ -498,6 +499,7 @@ class GaussianSplatPredictor(nn.Module):
             self.network_wo_offset = networkCallBack(cfg, 
                                         cfg.model.name,
                                         split_dimensions,
+                                        in_channels,
                                         scale = scale_inits,
                                         bias = bias_inits)
             assert not cfg.model.network_with_offset, "Can only have one network"
@@ -545,7 +547,7 @@ class GaussianSplatPredictor(nn.Module):
         # for cars and chairs the focal length is fixed across dataset
         # so we can preprocess it
         # for co3d this is done on the fly
-        if self.cfg.data.category not in ["hydrants", "teddybears"]:
+        if self.cfg.data.category not in ["hydrants", "teddybears", "cars_co3d"]:
             ray_dirs[:, :2, ...] /= fov2focal(self.cfg.data.fov * np.pi / 180, 
                                               self.cfg.data.training_resolution)
         self.register_buffer('ray_dirs', ray_dirs)
@@ -671,7 +673,7 @@ class GaussianSplatPredictor(nn.Module):
         # expands ray dirs along the batch dimension
         # adjust ray directions according to fov if not done already
         ray_dirs_xy = self.ray_dirs.expand(depth_network.shape[0], 3, *self.ray_dirs.shape[2:])
-        if self.cfg.data.category in ["hydrants", "teddybears"]:
+        if self.cfg.data.category in ["hydrants", "teddybears", "cars_co3d"]:
             assert torch.all(focals_pixels > 0)
             ray_dirs_xy = ray_dirs_xy.clone()
             ray_dirs_xy[:, :2, ...] = ray_dirs_xy[:, :2, ...] / focals_pixels.unsqueeze(2).unsqueeze(3)
@@ -707,7 +709,7 @@ class GaussianSplatPredictor(nn.Module):
         else:
             film_camera_emb = None
 
-        if self.cfg.data.category in ["hydrants", "teddybears"]:
+        if self.cfg.data.category in ["hydrants", "teddybears", "cars_co3d"]:
             assert focals_pixels is not None
             focals_pixels = focals_pixels.reshape(B*N_views, *focals_pixels.shape[2:])
         else:
@@ -715,8 +717,9 @@ class GaussianSplatPredictor(nn.Module):
 
         x = x.reshape(B*N_views, *x.shape[2:])
         if self.cfg.data.origin_distances:
-            const_offset = x[:, 3:, ...]
-            x = x[:, :3, ...]
+            origin_distance_idx = x.shape[1] - 1
+            const_offset = x[:, origin_distance_idx:, ...]
+            x = x[:, :origin_distance_idx, ...]
         else:
             const_offset = None
 

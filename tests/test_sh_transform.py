@@ -18,7 +18,7 @@ def test_sh_transform(experiment_path, device):
     training_cfg = OmegaConf.load(os.path.join(experiment_path, ".hydra", "config.yaml"))
 
     # load model
-    model = GaussianSplatPredictor(training_cfg)
+    model = GaussianSplatPredictor(training_cfg, 3)
     ckpt_loaded = torch.load(os.path.join(experiment_path, "model_best.pth"), map_location=device)
     model.load_state_dict(ckpt_loaded["model_state_dict"], strict=True)
     model = model.to(device)

@@ -21,10 +21,8 @@ from gaussian_renderer import render_predicted
 from scene.gaussian_predictor import GaussianSplatPredictor
 from datasets.dataset_factory import get_dataset
 
-
 @hydra.main(version_base=None, config_path='configs', config_name="default_config")
 def main(cfg: DictConfig):
-
     torch.set_float32_matmul_precision('high')
     if cfg.general.mixed_precision:
         fabric = Fabric(accelerator="cuda", devices=cfg.general.num_devices, strategy="dp",
@@ -55,7 +53,12 @@ def main(cfg: DictConfig):
     first_iter = 0
     device = safe_state(cfg)
 
-    gaussian_predictor = GaussianSplatPredictor(cfg)
+    in_channels = 3
+    if "rgbd" in cfg:
+        if cfg.rgbd.type == "rgbd" or cfg.rgbd.type == "rgbdnn":
+            in_channels = 4
+
+    gaussian_predictor = GaussianSplatPredictor(cfg, in_channels)
     gaussian_predictor = gaussian_predictor.to(memory_format=torch.channels_last)
 
     l = []
@@ -169,22 +172,33 @@ def main(cfg: DictConfig):
             # =============== Prepare input ================
             rot_transform_quats = data["source_cv2wT_quat"][:, :cfg.data.input_images]
 
-            if cfg.data.category == "hydrants" or cfg.data.category == "teddybears":
+            if cfg.data.category == "hydrants" or cfg.data.category == "teddybears" or cfg.data.category == "cars_co3d":
                 focals_pixels_pred = data["focals_pixels"][:, :cfg.data.input_images, ...]
+
                 input_images = torch.cat([data["gt_images"][:, :cfg.data.input_images, ...],
                                 data["origin_distances"][:, :cfg.data.input_images, ...]],
                                 dim=2)
+                if "rgbd" in cfg:
+                    if cfg.rgbd.type == "rgbd":
+                        input_images = torch.cat([data["gt_rgbds"][:, :cfg.data.input_images, ...],
+                                                  data["origin_distances"][:, :cfg.data.input_images, ...]],
+                                                 dim=2)
             else:
                 focals_pixels_pred = None
+
                 input_images = data["gt_images"][:, :cfg.data.input_images, ...]
+                if "rgbd" in cfg:
+                    if cfg.rgbd.type == "rgbd":
+                        input_images = data["gt_rgbds"][:, :cfg.data.input_images, ...]
+                    elif cfg.rgbd.type == "rgbdnn":
+                        input_images = data["gt_rgbdnns"][:, :cfg.data.input_images, ...]
 
             gaussian_splats = gaussian_predictor(input_images,
                                                 data["view_to_world_transforms"][:, :cfg.data.input_images, ...],
                                                 rot_transform_quats,
                                                 focals_pixels_pred)
 
-
-            if cfg.data.category == "hydrants" or cfg.data.category == "teddybears":
+            if cfg.data.category == "hydrants" or cfg.data.category == "teddybears" or cfg.data.category == "cars_co3d":
                 # regularize very big gaussians
                 if len(torch.where(gaussian_splats["scaling"] > 20)[0]) > 0:
                     big_gaussian_reg_loss = torch.mean(
@@ -211,12 +225,25 @@ def main(cfg: DictConfig):
                 # Rendering is done sequentially because gaussian rasterization code
                 # does not support batching
                 gaussian_splat_batch = {k: v[b_idx].contiguous() for k, v in gaussian_splats.items()}
+
+                # Replace gaussian_splat_batch z of "xyz" with z from paper model - ONLY for srn cars dataset
+                if "rgbd" in cfg:
+                    if cfg.rgbd.out_depth_enable and cfg.data.category == "cars":
+                        new_xyz = gaussian_splat_batch["xyz"].clone()
+                        original_min = data["depths_min_max"][b_idx, 0][0]
+                        original_max = data["depths_min_max"][b_idx, 0][1]
+                        original_z_vals = (data["gt_rgbds"][b_idx, 0][3, ...].view(-1) * (
+                                    original_max - original_min)) + original_min
+                        new_xyz[..., 2] = original_z_vals
+                        gaussian_splat_batch["xyz"] = new_xyz
+
                 for r_idx in range(cfg.data.input_images, data["gt_images"].shape[1]):
                     if "focals_pixels" in data.keys():
                         focals_pixels_render = data["focals_pixels"][b_idx, r_idx].cpu()
                     else:
                         focals_pixels_render = None
-                    image = render_predicted(gaussian_splat_batch, 
+
+                    image = render_predicted(gaussian_splat_batch,
                                         data["world_view_transforms"][b_idx, r_idx],
                                         data["full_proj_transforms"][b_idx, r_idx],
                                         data["camera_centers"][b_idx, r_idx],
@@ -230,14 +257,15 @@ def main(cfg: DictConfig):
             rendered_images = torch.stack(rendered_images, dim=0)
             gt_images = torch.stack(gt_images, dim=0)
             # Loss computation
-            l12_loss_sum = loss_fn(rendered_images, gt_images) 
+            l12_loss_sum = loss_fn(rendered_images, gt_images)
+
             if cfg.opt.lambda_lpips != 0:
                 lpips_loss_sum = torch.mean(
                     lpips_fn(rendered_images * 2 - 1, gt_images * 2 - 1),
                     )
 
             total_loss = l12_loss_sum * lambda_l12 + lpips_loss_sum * lambda_lpips
-            if cfg.data.category == "hydrants" or cfg.data.category == "teddybears":
+            if cfg.data.category == "hydrants" or cfg.data.category == "teddybears" or cfg.data.category == "cars_co3d":
                 total_loss = total_loss + big_gaussian_reg_loss + small_gaussian_reg_loss
 
             assert not total_loss.isnan(), "Found NaN loss!"
@@ -263,7 +291,7 @@ def main(cfg: DictConfig):
                     if cfg.opt.lambda_lpips != 0:
                         wandb.log({"training_l12_loss": np.log10(l12_loss_sum.item() + 1e-8)}, step=iteration)
                         wandb.log({"training_lpips_loss": np.log10(lpips_loss_sum.item() + 1e-8)}, step=iteration)
-                    if cfg.data.category == "hydrants" or cfg.data.category == "teddybears":
+                    if cfg.data.category == "hydrants" or cfg.data.category == "teddybears" or cfg.data.category == "cars_co3d":
                         if type(big_gaussian_reg_loss) == float:
                             brl_for_log = big_gaussian_reg_loss
                         else:
@@ -293,14 +321,24 @@ def main(cfg: DictConfig):
 
                     rot_transform_quats = vis_data["source_cv2wT_quat"][:, :cfg.data.input_images]
 
-                    if cfg.data.category == "hydrants" or cfg.data.category == "teddybears":
+                    if cfg.data.category == "hydrants" or cfg.data.category == "teddybears" or cfg.data.category == "cars_co3d":
                         focals_pixels_pred = vis_data["focals_pixels"][:, :cfg.data.input_images, ...]
                         input_images = torch.cat([vis_data["gt_images"][:, :cfg.data.input_images, ...],
                                                 vis_data["origin_distances"][:, :cfg.data.input_images, ...]],
                                                 dim=2)
+                        if "rgbd" in cfg:
+                            if cfg.rgbd.type == "rgbd":
+                                input_images = torch.cat([vis_data["gt_rgbds"][:, :cfg.data.input_images, ...],
+                                                          vis_data["origin_distances"][:, :cfg.data.input_images, ...]],
+                                                         dim=2)
                     else:
                         focals_pixels_pred = None
                         input_images = vis_data["gt_images"][:, :cfg.data.input_images, ...]
+                        if "rgbd" in cfg:
+                            if cfg.rgbd.type == "rgbdnn":
+                                input_images = vis_data["gt_rgbdnns"][:, :cfg.data.input_images, ...]
+                            elif cfg.rgbd.type == "rgbd":
+                                input_images = vis_data["gt_rgbds"][:, :cfg.data.input_images, ...]
 
                     gaussian_splats_vis = gaussian_predictor(input_images,
                                                         vis_data["view_to_world_transforms"][:, :cfg.data.input_images, ...],
