@@ -62,5 +62,5 @@ logging:
   render_log: 100
 
 rgbd:
-  type: rgbd # can be rgbd / rgbdnn (depth from external nn)/ none (rgb data)
-  out_depth_enable: true
+  type: rgbdnn # can be rgbd / rgbdnn (depth from external nn)/ none (rgb data)
+  out_depth_enable: false

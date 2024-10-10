@@ -225,21 +225,23 @@ def main(cfg: DictConfig):
                 # Rendering is done sequentially because gaussian rasterization code
                 # does not support batching
                 gaussian_splat_batch = {k: v[b_idx].contiguous() for k, v in gaussian_splats.items()}
+
+                # Replace gaussian_splat_batch z of "xyz" with z from paper model - ONLY for srn cars dataset
+                if "rgbd" in cfg:
+                    if cfg.rgbd.out_depth_enable and cfg.data.category == "cars":
+                        new_xyz = gaussian_splat_batch["xyz"].clone()
+                        original_min = data["depths_min_max"][b_idx, 0][0]
+                        original_max = data["depths_min_max"][b_idx, 0][1]
+                        original_z_vals = (data["gt_rgbds"][b_idx, 0][3, ...].view(-1) * (
+                                    original_max - original_min)) + original_min
+                        new_xyz[..., 2] = original_z_vals
+                        gaussian_splat_batch["xyz"] = new_xyz
+
                 for r_idx in range(cfg.data.input_images, data["gt_images"].shape[1]):
                     if "focals_pixels" in data.keys():
                         focals_pixels_render = data["focals_pixels"][b_idx, r_idx].cpu()
                     else:
                         focals_pixels_render = None
-
-                    # Replace gaussian_splat_batch z of "xyz" with z from paper model - ONLY for srn cars dataset
-                    if "rgbd" in cfg:
-                        if cfg.rgbd.out_depth_enable and cfg.data.category == "cars":
-                            new_xyz = gaussian_splat_batch["xyz"].clone()
-                            original_min = data["depths_min_max"][b_idx, r_idx][0]
-                            original_max = data["depths_min_max"][b_idx, r_idx][1]
-                            original_z_vals = (data["gt_rgbds"][b_idx, r_idx][3, ...].view(-1) * (original_max - original_min)) + original_min
-                            new_xyz[..., 2] = original_z_vals
-                            gaussian_splat_batch["xyz"] = new_xyz
 
                     image = render_predicted(gaussian_splat_batch,
                                         data["world_view_transforms"][b_idx, r_idx],
