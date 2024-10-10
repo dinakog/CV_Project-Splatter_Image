@@ -23,7 +23,7 @@ from .dataset_readers import readCamerasFromNpy
 from utils.general_utils import matrix_to_quaternion
 from utils.graphics_utils import getWorld2View2, getProjectionMatrix, getView2World, fov2focal
 
-CO3D_DATASET_ROOT = "C:\\Users\dinak\PyCharmsProjects\\try\CV_Project-Splatter_Image\CO3D\OUTPUT_FOLDER" # Change this to where you saved preprocessed data
+CO3D_DATASET_ROOT = "./CO3D/OUTPUT_FOLDER"  # Change this to where you saved preprocessed data
 assert CO3D_DATASET_ROOT is not None, "Update the location of the CO3D Dataset"
 
 class CO3DDataset(SharedDataset):
@@ -68,7 +68,9 @@ class CO3DDataset(SharedDataset):
                     self.frame_order_files.append(frame_order_file)
 
         if cfg.data.subset != -1:
-            self.frame_order_files = self.frame_order_files[:cfg.data.subset]
+            data_len = len(self.frame_order_files)
+            subset_size = int(cfg.data.subset * data_len)
+            self.frame_order_files = self.frame_order_files[:subset_size]
 
         self.imgs_per_obj = self.cfg.opt.imgs_per_obj
 

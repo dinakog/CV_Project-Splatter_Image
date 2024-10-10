@@ -11,7 +11,7 @@ general:
   mixed_precision: false
 data:
   training_resolution: 64 #128
-  subset: 1 #-1
+  subset: 0.2 #-1
   input_images: 1
   origin_distances: false
   depth: false

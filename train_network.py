@@ -233,7 +233,7 @@ def main(cfg: DictConfig):
 
                     # Replace gaussian_splat_batch z of "xyz" with z from paper model - ONLY for srn cars dataset
                     if "rgbd" in cfg:
-                        if cfg.rgbd.out_depth_enable == "true" and cfg.data.category == "cars":
+                        if cfg.rgbd.out_depth_enable and cfg.data.category == "cars":
                             new_xyz = gaussian_splat_batch["xyz"].clone()
                             original_min = data["depths_min_max"][b_idx, r_idx][0]
                             original_max = data["depths_min_max"][b_idx, r_idx][1]
