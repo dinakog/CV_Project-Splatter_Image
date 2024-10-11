@@ -1,17 +1,32 @@
 #  Splatter Image: Ultra-Fast Single-View 3D Reconstruction Improvement by Training on RGB-D Dataset
 
-
-
-
 This repository presents the **Splatter Image** framework, an ultra-fast approach for **single-view 3D object reconstruction**. The approach operates at 38 FPS and is based on **Gaussian Splatting**, a novel method that has shown success in multi-view reconstruction for real-time rendering, fast training, and scaling. Our research extends this method to **monocular reconstruction** by incorporating additional **depth information** into the model during training.
 
 The **Splatter Image** framework modifies the **UNet architecture**, integrating depth channels to enhance 3D object reconstruction quality, significantly improving reconstruction metrics like **PSNR**, **SSIM**, and **LPIPS** across multiple datasets.
-##
-![ezgif com-resize (2)](https://github.com/user-attachments/assets/06738452-46cb-40b6-a1a6-ae4b0e41ee20)
-![ezgif com-resize (1)](https://github.com/user-attachments/assets/000a59e1-87e6-4e53-91b2-d3ec4bf57a5e)
-![ezgif com-animated-gif-maker](https://github.com/user-attachments/assets/7145632f-0826-449a-80de-fadec1d87c96)
-![ezgif com-animated-gif-maker (1)](https://github.com/user-attachments/assets/59f88800-e3cc-4fc0-902b-ec9a2e75915d)
 
+##
+<table>
+  <tr>
+    <td align="center">
+      <img src="https://github.com/user-attachments/assets/06738452-46cb-40b6-a1a6-ae4b0e41ee20" width="250"/>
+      <br><b>Ground Truth Model</b>
+    </td>
+    <td align="center">
+      <img src="https://github.com/user-attachments/assets/000a59e1-87e6-4e53-91b2-d3ec4bf57a5e" width="250"/>
+      <br><b>RGB Baseline Reconstruction</b>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="https://github.com/user-attachments/assets/7145632f-0826-449a-80de-fadec1d87c96" width="250"/>
+      <br><b>RGB+D DepthAnything Reconstruction</b>
+    </td>
+    <td align="center">
+      <img src="https://github.com/user-attachments/assets/59f88800-e3cc-4fc0-902b-ec9a2e75915d" width="250"/>
+      <br><b>RGB+D Splatter-Image Reconstruction</b>
+    </td>
+  </tr>
+</table>
 
 ## ✨ Key Features
 - 🔄 **Monocular 3D object reconstruction** using a fast feed-forward neural network.
