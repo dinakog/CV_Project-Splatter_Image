@@ -120,21 +120,22 @@ cd CV_Project-Splatter_Image
 conda create --name splatter-image python=3.8
 conda activate splatter-image
 ```
-#### 4. Install PyTorch and CUDA
+#### 4. Install Dependencies from conda_requirements
+```bash
+conda install --file conda_requirements.txt
+```
+#### 5. Install PyTorch and CUDA
 ```bash
 conda install pytorch==1.13.1 torchvision==0.14.1 torchaudio==0.13.1 pytorch-cuda=11.7 -c pytorch -c nvidia
 ```
-#### 5. Set Up Visual Studio Environment
+#### 6. Set Up Visual Studio Environment
 Open the Command Prompt and run:
 
 ```bash
 "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars64.bat"
 set DISTUTILS_USE_SDK=1
 ```
-#### 6. Install Remaining Dependencies
-```bash
-pip install -r requirements.txt
-```
+
 #### 7. Verify CUDA Setup
 Create a file named cuda_check.py with the following content:
 
@@ -148,14 +149,35 @@ print(torch.cuda.get_device_name(0))
 ```bash
 python cuda_check.py
 ```
-#### 9. Run Training and Evaluation Scripts
-```bash
-python train_model.py --config=config_file.yaml
-python evaluate_model.py --dataset=srn_cars
-```
-#### 10. View Results
-Results will be saved in the results/ folder.
+### Running the Training Process
+The training process involves two steps:
 
+**Step 1:** Initial Training
+Run the initial training script:
+```bash
+python train_network.py +dataset=cars/cars_co3d
+```
+**Step 2:** Update Configuration and Continue Training
+1. Update Configuration File:
+  - Open configs/experiment_configs/lpips_100k.yaml.
+  - Update the load_network_path parameter with the path to the model created in Step 1.
+2. Continue Training:
+```bash
+python train_network.py +dataset=cars/cars_co3d +experiment=lpips_100k.yaml
+```
+### Running the Evaluation Process
+To evaluate the trained model, use the following command:
+```bash
+python eval.py cars/cars_co3d --experiment_path <path_to_experiment>
+```
+- Replace <path_to_experiment> with the actual path to your trained model.
+#### Generating Visualizations (Optional)
+If you wish to generate visualizations of the model's output, add the --save_vis flag:
+
+```bash
+python eval.py cars/cars_co3d --experiment_path <path_to_experiment> --save_vis <number_of_visualizations>
+``` 
+- Replace <number_of_visualizations> with the desired number of visualizations to generate.
 ## 🚧 Future Work
 Scale the Experiments: Due to limited resources, our experiments were constrained. We hypothesize that with more computational power and a larger dataset, we could maintain the observed improvement trends. Scaling the dataset and experimenting with more extensive training iterations would be the next step.
 
